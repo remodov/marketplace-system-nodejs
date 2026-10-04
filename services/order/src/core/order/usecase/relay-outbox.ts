@@ -18,19 +18,10 @@ export class OutboxRelay {
     private readonly log: RelayLog,
   ) {}
 
+  // TODO шаг 10: в одной транзакции взять пачку неотправленных строк, опубликовать
+  // каждую через издателя и пометить отправленной; отказ брокера откатывает всё.
   async once(): Promise<number> {
-    return this.uow.within(async (tx) => {
-      const batch = await tx.outbox.unpublished(this.batchSize);
-      for (const message of batch) {
-        try {
-          await this.publisher.publish(message);
-        } catch (error) {
-          throw new Error(`публикация ${message.eventType} ${message.id}`, { cause: error });
-        }
-        await tx.outbox.markPublished(message.id, this.clock.now());
-      }
-      return batch.length;
-    });
+    return 0;
   }
 
   run(everyMs: number): void {
