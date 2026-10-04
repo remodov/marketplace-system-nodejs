@@ -13,10 +13,10 @@
 | сервис | отвечает за | стек |
 |---|---|---|
 | `services/catalog-starter` | карточки товаров, остатки, резерв, поиск | NestJS, TypeORM, миграции TypeORM, Redis |
+| `services/catalog` | те же карточки по-взрослому: слои, спецификация, роли, владение, журнал администратора | NestJS, TypeORM, jose, архитектурные тесты |
 
-Дальше по плану появляются `services/catalog` (тот же каталог по-взрослому), `services/order`,
-`services/payment`, `services/notification`, `services/bff`, `web` и `contracts` - по образцу
-Java- и Go-версий ([план](docs/practicum/PLAN.md)).
+Дальше по плану появляются `services/order`, `services/payment`, `services/notification`,
+`services/bff`, `web` и `contracts` - по образцу Java- и Go-версий ([план](docs/practicum/PLAN.md)).
 
 ## С чего начинать
 
