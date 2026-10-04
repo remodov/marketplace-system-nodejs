@@ -16,3 +16,10 @@ test('миграции дают каждую колонку, которую чи
     expect(have.has(want)).toBe(true);
   }
 });
+
+test('триграммный индекс по названию на месте', async () => {
+  const rows: { indexname: string }[] = await s.app
+    .get(DataSource)
+    .query("SELECT indexname FROM pg_indexes WHERE tablename = 'products' AND indexdef LIKE '%gin_trgm_ops%'");
+  expect(rows).toHaveLength(1);
+});

@@ -42,8 +42,8 @@ export class ProductController {
   }
 
   @Get(':id')
-  async byId(@Param('id', productId) id: string): Promise<Card> {
-    return cardOf(await this.service.byId(id));
+  byId(@Param('id', productId) id: string): Promise<Card> {
+    return this.service.card(id);
   }
 
   @Post()

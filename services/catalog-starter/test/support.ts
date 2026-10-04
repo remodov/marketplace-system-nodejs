@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { Test, TestingModuleBuilder } from '@nestjs/testing';
 import Decimal from 'decimal.js';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
@@ -26,8 +26,8 @@ export type Stand = {
   close(): Promise<void>;
 };
 
-export async function stand(): Promise<Stand> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule.forConfig(testConfig)] }).compile();
+export async function stand(customize: (b: TestingModuleBuilder) => TestingModuleBuilder = (b) => b): Promise<Stand> {
+  const moduleRef = await customize(Test.createTestingModule({ imports: [AppModule.forConfig(testConfig)] })).compile();
   const app = configureApp(moduleRef.createNestApplication({ logger: false }));
   await app.init();
   const service = app.get(ProductService);
