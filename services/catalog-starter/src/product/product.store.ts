@@ -1,4 +1,3 @@
-import Decimal from 'decimal.js';
 import { Product } from './product.entity';
 
 export const PRODUCT_STORE = Symbol('PRODUCT_STORE');
@@ -6,7 +5,7 @@ export const PRODUCT_STORE = Symbol('PRODUCT_STORE');
 export interface ProductStore {
   all(): Promise<Product[]>;
   byTitle(part: string): Promise<Product[]>;
-  cheaper(maxPrice: Decimal): Promise<Product[]>;
+  // TODO шаг 2: выборка товаров не дороже maxPrice
   byId(id: string): Promise<Product>;
   byIdForUpdate(id: string): Promise<Product>;
   insert(product: Product): Promise<void>;

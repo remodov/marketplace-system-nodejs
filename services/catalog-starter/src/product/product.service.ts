@@ -16,9 +16,7 @@ export class ProductService {
     return part === '' ? this.store.all() : this.store.byTitle(part);
   }
 
-  cheaperThan(maxPrice: Decimal): Promise<Product[]> {
-    return this.store.cheaper(maxPrice);
-  }
+  // TODO шаг 2: сценарий чтения cheaperThan
 
   byId(id: string): Promise<Product> {
     return this.store.byId(id);

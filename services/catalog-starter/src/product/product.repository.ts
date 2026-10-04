@@ -1,4 +1,3 @@
-import Decimal from 'decimal.js';
 import { EntityManager } from 'typeorm';
 import { Product } from './product.entity';
 import { ConflictError, NotFoundError } from './product.errors';
@@ -15,9 +14,7 @@ export class ProductRepository implements ProductStore {
     return this.query().where('p.title ILIKE :part', { part: `%${part}%` }).orderBy('p.title').getMany();
   }
 
-  cheaper(maxPrice: Decimal): Promise<Product[]> {
-    return this.query().where('p.price <= :max', { max: maxPrice.toFixed(2) }).orderBy('p.price').getMany();
-  }
+  // TODO шаг 2: запрос с условием по цене и сортировкой по колонке таблицы
 
   async byId(id: string): Promise<Product> {
     const found = await this.query().where('p.id = :id', { id }).getOne();

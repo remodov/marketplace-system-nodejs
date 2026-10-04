@@ -1,4 +1,4 @@
-import { IsDefined, IsInt, IsNumber, IsOptional, IsPositive, IsString, Matches, Min, MinLength } from 'class-validator';
+import { IsDefined, IsInt, IsNumber, IsOptional, IsPositive, IsString, Min, MinLength } from 'class-validator';
 
 export class CreateProductDto {
   @IsDefined({ message: 'название обязательно' })
@@ -29,7 +29,5 @@ export class SearchQueryDto {
   @IsString()
   query?: string;
 
-  @IsOptional()
-  @Matches(/^\d+(\.\d{1,2})?$/, { message: 'должна быть положительным числом' })
-  maxPrice?: string;
+  // TODO шаг 2: необязательный параметр maxPrice с проверкой формата
 }

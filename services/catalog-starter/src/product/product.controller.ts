@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import Decimal from 'decimal.js';
-import { BadInputError, FieldErrors } from '../http/problem';
+import { BadInputError } from '../http/problem';
 import { Card, cardOf } from './product.card';
 import { CreateProductDto, ReserveDto, SearchQueryDto } from './product.dto';
 import { ProductService } from './product.service';
@@ -20,10 +20,8 @@ export class ProductController {
   }
 
   private searchOrFilter(query: SearchQueryDto) {
-    if (query.maxPrice === undefined) return this.service.search(query.query ?? '');
-    const maxPrice = new Decimal(query.maxPrice);
-    if (maxPrice.lte(0)) throw new FieldErrors({ maxPrice: 'должна быть положительным числом' });
-    return this.service.cheaperThan(maxPrice);
+    // TODO шаг 2: если пришёл maxPrice, разобрать его в Decimal и выбрать сценарий cheaperThan
+    return this.service.search(query.query ?? '');
   }
 
   @Get(':id')
