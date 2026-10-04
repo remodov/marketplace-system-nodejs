@@ -7,12 +7,14 @@ import { DB_PINGER, Pinger } from '../adapter/in/http/health.controller';
 import { TypeOrmAuditLogger } from '../adapter/out/persistence/audit.repository';
 import { TypeOrmProductRepository } from '../adapter/out/persistence/product.repository';
 import { TypeOrmUnitOfWork } from '../adapter/out/persistence/unit-of-work';
+import { S3ImageStorage } from '../adapter/out/storage/s3-image-storage';
 import { RandomIds, SystemClock } from '../adapter/out/system/system';
-import { Clock, IdGenerator, ProductRepository, UnitOfWork } from '../core/product/port/out/ports';
+import { Clock, IdGenerator, ImageStorage, ProductRepository, UnitOfWork } from '../core/product/port/out/ports';
 import { QueryHandler } from '../core/product/query/queries';
 import { ChangeProductPriceHandler } from '../core/product/usecase/change-product-price';
 import { ChangeStatusHandler } from '../core/product/usecase/change-status';
 import { CreateProductHandler } from '../core/product/usecase/create-product';
+import { RequestImageUploadHandler } from '../core/product/usecase/request-image-upload';
 import { Config } from './config';
 
 export const CONFIG = Symbol('CONFIG');
@@ -21,11 +23,13 @@ export const ID_GENERATOR = Symbol('ID_GENERATOR');
 export const PRODUCT_REPOSITORY = Symbol('PRODUCT_REPOSITORY');
 export const AUDIT_LOGGER = Symbol('AUDIT_LOGGER');
 export const UNIT_OF_WORK = Symbol('UNIT_OF_WORK');
+export const IMAGE_STORAGE = Symbol('IMAGE_STORAGE');
 
 export type Deps = {
   clock?: Clock;
   ids?: IdGenerator;
   auth?: Authenticator;
+  images?: ImageStorage;
 };
 
 export function authenticatorOf(config: Config): Authenticator {
@@ -33,12 +37,28 @@ export function authenticatorOf(config: Config): Authenticator {
   return new LocalTokens();
 }
 
+export function imageStorageOf(config: Config, clock: Clock): ImageStorage {
+  return new S3ImageStorage(
+    {
+      endpoint: config.s3Endpoint,
+      region: config.s3Region,
+      accessKey: config.s3AccessKey,
+      secretKey: config.s3SecretKey,
+      bucket: config.s3Bucket,
+      uploadUrlTtlSeconds: config.imageUploadUrlTtlSeconds,
+    },
+    clock,
+  );
+}
+
 export function wiring(config: Config, deps: Deps): Provider[] {
+  const clock = deps.clock ?? new SystemClock();
   return [
     { provide: CONFIG, useValue: config },
-    { provide: CLOCK, useValue: deps.clock ?? new SystemClock() },
+    { provide: CLOCK, useValue: clock },
     { provide: ID_GENERATOR, useValue: deps.ids ?? new RandomIds() },
     { provide: AUTHENTICATOR, useValue: deps.auth ?? authenticatorOf(config) },
+    { provide: IMAGE_STORAGE, useValue: deps.images ?? imageStorageOf(config, clock) },
     { provide: APP_GUARD, useClass: BearerAuthGuard },
 
     { provide: DB_PINGER, useFactory: (db: DataSource): Pinger => ({ ping: () => db.query('SELECT 1') }), inject: [DataSource] },
@@ -62,6 +82,11 @@ export function wiring(config: Config, deps: Deps): Provider[] {
       inject: [CLOCK, ID_GENERATOR, UNIT_OF_WORK],
     },
     { provide: QueryHandler, useFactory: (products: ProductRepository) => new QueryHandler(products), inject: [PRODUCT_REPOSITORY] },
+    {
+      provide: RequestImageUploadHandler,
+      useFactory: (products: ProductRepository, images: ImageStorage, ids: IdGenerator) => new RequestImageUploadHandler(products, images, ids),
+      inject: [PRODUCT_REPOSITORY, IMAGE_STORAGE, ID_GENERATOR],
+    },
   ];
 }
 

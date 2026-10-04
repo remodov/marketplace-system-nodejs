@@ -311,12 +311,15 @@ components:
       properties:
         key:
           type: string
-          example: products/3fa85f64-5717-4562-b3fc-2c963f66afa6/9c2f
+          description: Ключ объекта в корзине, говорит, к какому товару относится файл
+          example: products/3fa85f64-5717-4562-b3fc-2c963f66afa6/9c2f6c1e-5b1a-4a4e-8f7e-2d3c4b5a6f70
         url:
           type: string
           format: uri
+          description: Подписанная ссылка на PUT объекта; тип содержимого входит в подпись
         expiresAt:
           type: string
+          format: date-time
 
     ProductDto:
       type: object

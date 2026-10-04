@@ -3,7 +3,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 
 const src = resolve(__dirname, '../src');
 
-const forbiddenInCore = ['@nestjs', 'typeorm', 'express', 'pg', 'class-validator', 'class-transformer', 'jose', 'reflect-metadata', 'node:http'];
+const forbiddenInCore = ['@nestjs', 'typeorm', 'express', 'pg', 'class-validator', 'class-transformer', 'jose', '@aws-sdk', 'reflect-metadata', 'node:http'];
 
 function tsFiles(dir: string): string[] {
   const files: string[] = [];

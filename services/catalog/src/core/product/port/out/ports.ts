@@ -59,3 +59,13 @@ export type TransactionalPorts = {
 export interface UnitOfWork {
   within<T>(work: (tx: TransactionalPorts) => Promise<T>): Promise<T>;
 }
+
+export type PresignedUpload = {
+  key: string;
+  url: string;
+  expiresAt: Date;
+};
+
+export interface ImageStorage {
+  presignUpload(key: string, contentType: string): Promise<PresignedUpload>;
+}

@@ -1,6 +1,6 @@
 import { IsDefined, IsIn, IsNumber, IsOptional, IsPositive, IsString, MinLength } from 'class-validator';
 import { Product, Status, STATUSES } from '../../../core/product/aggregate/product';
-import { ProductPage } from '../../../core/product/port/out/ports';
+import { PresignedUpload, ProductPage } from '../../../core/product/port/out/ports';
 
 export class CreateProductRequest {
   @IsDefined({ message: 'обязательное поле' })
@@ -28,6 +28,14 @@ export class ChangePriceRequest {
   @IsNumber({}, { message: 'должна быть числом' })
   @IsPositive({ message: 'должна быть больше нуля' })
   price!: number;
+}
+
+export const IMAGE_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+
+export class ImageUploadRequest {
+  @IsDefined({ message: 'обязательное поле' })
+  @IsIn(IMAGE_CONTENT_TYPES, { message: 'image/jpeg, image/png или image/webp' })
+  contentType!: string;
 }
 
 export class ListMyProductsQuery {
@@ -67,6 +75,12 @@ export type ProductPageDto = {
   total: number;
 };
 
+export type ImageUploadUrlDto = {
+  key: string;
+  url: string;
+  expiresAt: string;
+};
+
 export function toDto(product: Product): ProductDto {
   const s = product.state();
   return {
@@ -84,4 +98,8 @@ export function toDto(product: Product): ProductDto {
 
 export function toPageDto(page: ProductPage): ProductPageDto {
   return { items: page.items.map(toDto), page: page.page, size: page.size, total: page.total };
+}
+
+export function toUploadUrlDto(upload: PresignedUpload): ImageUploadUrlDto {
+  return { key: upload.key, url: upload.url, expiresAt: upload.expiresAt.toISOString() };
 }

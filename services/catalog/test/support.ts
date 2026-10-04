@@ -17,6 +17,12 @@ export const testConfig: Config = {
   jwksUrl: '',
   jwtIssuer: '',
   jwtAudience: '',
+  s3Endpoint: 'http://localhost:9002',
+  s3Region: 'us-east-1',
+  s3AccessKey: 'marketplace',
+  s3SecretKey: 'marketplace',
+  s3Bucket: 'marketplace-images',
+  imageUploadUrlTtlSeconds: 600,
 };
 
 type Method = 'get' | 'post' | 'patch';

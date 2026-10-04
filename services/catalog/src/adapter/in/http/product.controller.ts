@@ -7,9 +7,21 @@ import { QueryHandler } from '../../../core/product/query/queries';
 import { ChangeProductPriceHandler } from '../../../core/product/usecase/change-product-price';
 import { ChangeStatusHandler } from '../../../core/product/usecase/change-status';
 import { CreateProductHandler } from '../../../core/product/usecase/create-product';
+import { RequestImageUploadHandler } from '../../../core/product/usecase/request-image-upload';
 import { Principal, ROLE_ADMIN, ROLE_SELLER } from '../../../core/security/principal';
 import { CurrentPrincipal, Roles } from './auth.guard';
-import { ChangePriceRequest, CreateProductRequest, ListMyProductsQuery, ProductDto, ProductPageDto, toDto, toPageDto } from './product.dto';
+import {
+  ChangePriceRequest,
+  CreateProductRequest,
+  ImageUploadRequest,
+  ImageUploadUrlDto,
+  ListMyProductsQuery,
+  ProductDto,
+  ProductPageDto,
+  toDto,
+  toPageDto,
+  toUploadUrlDto,
+} from './product.dto';
 
 const productId = new ParseUUIDPipe({ exceptionFactory: () => validationError({ productId: 'должен быть UUID' }) });
 
@@ -20,6 +32,7 @@ export class ProductController {
     private readonly price: ChangeProductPriceHandler,
     private readonly status: ChangeStatusHandler,
     private readonly queries: QueryHandler,
+    private readonly upload: RequestImageUploadHandler,
   ) {}
 
   @Post()
@@ -80,6 +93,17 @@ export class ProductController {
     @Body() body: ChangePriceRequest,
   ): Promise<ProductDto> {
     return toDto(await this.price.handle({ productId: id, requester, newPrice: new Decimal(body.price) }));
+  }
+
+  @Post(':productId/image-upload-url')
+  @HttpCode(200)
+  @Roles(ROLE_SELLER, ROLE_ADMIN)
+  async requestImageUpload(
+    @Param('productId', productId) id: string,
+    @CurrentPrincipal() requester: Principal,
+    @Body() body: ImageUploadRequest,
+  ): Promise<ImageUploadUrlDto> {
+    return toUploadUrlDto(await this.upload.handle({ productId: id, requester, contentType: body.contentType }));
   }
 }
 
