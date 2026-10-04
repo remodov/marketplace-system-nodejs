@@ -220,13 +220,16 @@ undici с таймаутом и ошибкой `DownstreamError`, guard лими
 
 **Материал:** [/docker/node/dockerizing/](https://vikulin-va.ru/docker/node/dockerizing/) · [/docker/node/runtime/](https://vikulin-va.ru/docker/node/runtime/) · [/kubernetes/](https://vikulin-va.ru/kubernetes/) · [/observability/node/health-checks/](https://vikulin-va.ru/observability/node/health-checks/) · [/observability/node/metrics/](https://vikulin-va.ru/observability/node/metrics/) · [/cicd/](https://vikulin-va.ru/cicd/)
 
-**Даётся:** черновой `Dockerfile` стартового каталога, манифест `deploy/k8s/catalog-starter.yaml`
-без проб и лимитов, эталонный `deploy/k8s/bff.yaml`, пайплайн `.github/workflows/ci.yml`,
-проверка выката `tools/check-deploy.py`, модуль `observability` с гистограммой времени ответа на
-`prom-client` и трассировкой на OpenTelemetry.
+**Даётся:** черновой `Dockerfile` стартового каталога (один слой, от root, с dev-зависимостями),
+манифест `deploy/k8s/catalog-starter.yaml` без проб и лимитов, эталонный `deploy/k8s/bff.yaml`,
+пайплайн `.github/workflows/ci.yml` с PostgreSQL и Redis, проверка выката `tools/check-deploy.py`,
+модуль `observability` с гистограммой времени ответа на `prom-client`, middleware трассировки на
+OpenTelemetry и экспортом в OTLP.
 
-**Ученик:** собирает образ в два этапа без dev-зависимостей и без root; в манифесте заводит пробы,
-запросы и лимиты, `preStop` и версию образа вместо `latest`; монтирует пробы и `/metrics` с меткой
-сервиса и включает сэмплирование трасс по доле из настроек.
+**Ученик:** собирает образ в два этапа без dev-зависимостей и исходников на `distroless` без root;
+в манифесте заводит пробы готовности и живости, запросы и лимиты, `preStop` и версию образа вместо
+`latest`; монтирует пробы и `/metrics` с меткой сервиса и включает сэмплирование трасс по доле из
+настроек.
 
-**Проверка:** `tools/check-deploy.py` без замечаний, четыре проверки наблюдаемости зелёные.
+**Проверка:** `tools/check-deploy.py` без замечаний (сейчас десять), четыре проверки `observability.spec.ts`
+зелёные: обе пробы, метрики Prometheus с меткой `service` и маршрутом, сэмплер берёт все трассы при доле 1.0.

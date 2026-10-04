@@ -23,7 +23,31 @@ curl -s -X POST localhost:3082/products/<id>/reserve -H 'Content-Type: applicati
 ```
 
 Настройки - переменные окружения: `HTTP_PORT` (`3082`), `DATABASE_URL`
-(база из compose на 5450), `CACHE` (`redis` или `memory`), `REDIS_URL`.
+(база из compose на 5450), `CACHE` (`redis` или `memory`), `REDIS_URL`,
+`SERVICE_NAME` (`catalog-starter`, метка `service` в метриках и `service.name` в трассах),
+`OTEL_EXPORTER_OTLP_ENDPOINT` (`http://localhost:4318`, пустое значение выключает отправку трасс),
+`TRACE_SAMPLE_RATIO` (доля трасс от 0 до 1, по умолчанию `1.0`).
+
+## Собрать образ
+
+Контекст сборки - корень репозитория, образ в два этапа: сборка на `node:24-alpine`,
+рантайм `distroless/nodejs24` без оболочки и `npm`, от пользователя `nonroot`.
+
+```bash
+cd ../..
+docker build -f services/catalog-starter/Dockerfile -t catalog-starter-node:0.1.0 .
+docker run --rm -p 3082:3082 \
+  -e DATABASE_URL=postgres://catalog:catalog@host.docker.internal:5450/catalog_starter \
+  -e REDIS_URL=redis://host.docker.internal:6382 \
+  -e OTEL_EXPORTER_OTLP_ENDPOINT= \
+  catalog-starter-node:0.1.0
+curl -s -o /dev/null -w '%{http_code}\n' localhost:3082/health/live
+curl -s -o /dev/null -w '%{http_code}\n' localhost:3082/health/ready
+curl -s localhost:3082/metrics | grep http_server_request_duration_seconds_count
+```
+
+Манифест для кластера - `deploy/k8s/catalog-starter.yaml`, проверка выката - `python3 tools/check-deploy.py`
+из корня.
 
 ## Прогнать тесты
 
@@ -47,6 +71,7 @@ npm test
 | `src/product/product.dto.ts` | проверка входа через class-validator с сообщениями по полям |
 | `src/http/problem.ts` | тело ошибки в формате Problem Details, коды 400, 404 и 409 |
 | `src/migrations` | миграции TypeORM, применяются при старте |
+| `src/observability` | пробы `/health/live` и `/health/ready`, `/metrics` на `prom-client` с гистограммой времени ответа по шаблонам маршрутов, трассы OpenTelemetry в OTLP с сэмплированием по доле |
 
 Правило, вокруг которого всё крутится, живёт в сущности, а не в сервисе:
 

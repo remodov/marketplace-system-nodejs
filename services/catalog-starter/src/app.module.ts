@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Config, fromEnv } from './config/config';
 import { ConfigModule } from './config/config.module';
 import { dataSourceOptions } from './database/datasource';
+import { ObservabilityModule } from './observability/observability.module';
 import { ProductModule } from './product/product.module';
 
 @Module({})
@@ -10,7 +11,12 @@ export class AppModule {
   static forConfig(config: Config = fromEnv()) {
     return {
       module: AppModule,
-      imports: [ConfigModule.forRoot(config), TypeOrmModule.forRoot(dataSourceOptions(config.databaseUrl)), ProductModule],
+      imports: [
+        ConfigModule.forRoot(config),
+        TypeOrmModule.forRoot(dataSourceOptions(config.databaseUrl)),
+        ObservabilityModule.forRoot({ service: config.serviceName, otlpEndpoint: config.otlpEndpoint, sampleRatio: config.traceSampleRatio }),
+        ProductModule,
+      ],
     };
   }
 }

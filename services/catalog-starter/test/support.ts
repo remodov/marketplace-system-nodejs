@@ -16,6 +16,9 @@ export const testConfig: Config = {
   cacheKind: 'memory',
   redisUrl: 'redis://localhost:6382',
   cacheTtlSeconds: 600,
+  serviceName: 'catalog-starter',
+  otlpEndpoint: '',
+  traceSampleRatio: 1,
 };
 
 export type Stand = {

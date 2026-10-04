@@ -25,7 +25,8 @@
 `@marketplace/contracts-orders-v1` и `@marketplace/contracts-payments-v1`, которые сервисы подключают зависимостью
 `file:`, так что продюсер и потребитель компилируются против одних типов. Веб-клиент в [`web/`](web/README.md)
 один на все языки практикума: тот же TypeScript, что в Java- и Go-версиях, отличаются только порты
-сервисов за прокси Vite. Дальше по [плану](docs/practicum/PLAN.md) - доставка и наблюдаемость.
+сервисов за прокси Vite. Последний шаг [плана](docs/practicum/PLAN.md) - доставка и наблюдаемость:
+образ стартового каталога, манифесты Kubernetes, пробы, метрики, трассы и пайплайн, см. ниже.
 
 ## С чего начинать
 
@@ -76,11 +77,40 @@ Vite на `http://localhost:5173` сам проксирует `/api/v1/products`
 в заказы и `/api/v1/screens` в BFF, так что шлюз для разработки не нужен. Товар на витрине
 появляется после публикации продавцом.
 
+## Собрать образ и выкатить
+
+Образ стартового каталога собирается из корня репозитория в два этапа: на `node:24-alpine`
+компилируется `dist/` и ставятся зависимости без dev, в рантайм `distroless/nodejs24` без
+оболочки и `npm` уезжают только `dist/`, `node_modules` и `package.json`, контейнер бежит
+от `nonroot`.
+
+```bash
+docker build -f services/catalog-starter/Dockerfile -t catalog-starter-node:0.1.0 .
+docker run --rm -p 3082:3082 \
+  -e DATABASE_URL=postgres://catalog:catalog@host.docker.internal:5450/catalog_starter \
+  -e REDIS_URL=redis://host.docker.internal:6382 \
+  -e OTEL_EXPORTER_OTLP_ENDPOINT= \
+  catalog-starter-node:0.1.0
+curl -s -o /dev/null -w '%{http_code}\n' localhost:3082/health/live
+```
+
+Манифесты Kubernetes лежат в `deploy/k8s/`: `catalog-starter.yaml` и эталонный `bff.yaml` с
+пробами готовности и живости, запросами и лимитами, `runAsNonRoot`, `preStop` и образом с версией.
+Сервис отдаёт `/health/live`, `/health/ready` (проверяет базу, при недоступной отвечает 503 с
+кодом `NOT_READY`) и `/metrics` в формате Prometheus с гистограммой времени ответа по шаблонам
+маршрутов; трассы уходят в OTLP по `OTEL_EXPORTER_OTLP_ENDPOINT` с долей `TRACE_SAMPLE_RATIO`.
+
+Пайплайн `.github/workflows/ci.yml` на каждый push в `main` и pull request поднимает PostgreSQL
+и Redis, гоняет `npm test` в `catalog-starter`, `catalog`, `payment` и `bff` (заказам и
+уведомлениям нужна Kafka, они живут на стенде), тесты клиента в `web/` и проверку выката
+`python3 tools/check-deploy.py`: пробы, лимиты, `runAsNonRoot`, `preStop`, тег образа, две стадии
+сборки, образ без dev-зависимостей и исходников.
+
 ## Как устроен шаг
 
 Ветка `step-NN-<тема>` - задание: каркас на месте, реализация вынута, тест красный,
-условие в `TASK.md` внутри сервиса. Ветка `step-NN-<тема>-solution` - эталон.
-`main` - накопленный эталон всех шагов.
+условие в `TASK.md` внутри сервиса (шаг 15 трогает весь репозиторий, его условие лежит в корне).
+Ветка `step-NN-<тема>-solution` - эталон. `main` - накопленный эталон всех шагов.
 
 ```bash
 git switch step-02-read-endpoint
@@ -92,3 +122,4 @@ cd services/catalog-starter && npm test
 - [Ядро NestJS](https://vikulin-va.ru/nestjs/modules-and-di/) - модули, провайдеры и внедрение зависимостей, на которых стоит каждый сервис.
 - [Хранение данных с TypeORM](https://vikulin-va.ru/nestjs/persistence-typeorm/) - сущности, миграции и транзакции.
 - [Use Case Pattern](https://vikulin-va.ru/use-case-pattern/) - как устроены взрослые сервисы второй части.
+- [Dockerfile для сервиса на Node](https://vikulin-va.ru/docker/node/dockerizing/) и [пробы](https://vikulin-va.ru/observability/node/health-checks/) - образ, манифесты и наблюдаемость последнего шага.
