@@ -1,0 +1,9 @@
+{
+  "name": "@marketplace/contracts-orders-v1",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Внешний контракт событий заказа маркетплейса: имена топика, заголовков и типов событий, типы payload",
+  "main": "events.js",
+  "types": "events.d.ts",
+  "files": ["events.js", "events.d.ts"]
+}

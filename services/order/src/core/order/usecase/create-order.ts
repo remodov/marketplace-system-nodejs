@@ -48,6 +48,7 @@ export class CreateOrderHandler {
     try {
       await this.uow.within(async (tx) => {
         await tx.orders.insert(order);
+        await tx.outbox.append(order.pullEvents());
         const claimed = await tx.keys.claim(cmd.idempotencyKey, cmd.requestHash, order.state().id, order.state().createdAt);
         if (!claimed) throw new IdempotencyKeyTaken();
       });

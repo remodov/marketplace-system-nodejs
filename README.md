@@ -14,10 +14,14 @@
 |---|---|---|
 | `services/catalog-starter` | карточки товаров, остатки, резерв, поиск | NestJS, TypeORM, миграции TypeORM, Redis |
 | `services/catalog` | те же карточки по-взрослому: слои, спецификация, роли, владение, журнал администратора | NestJS, TypeORM, jose, архитектурные тесты |
-| `services/order` | заказы: черновик с ценами из каталога, клиент каталога с таймаутами, повтором и размыкателем | NestJS, TypeORM, undici, opossum |
+| `services/order` | заказы: черновик с ценами из каталога, клиент каталога с таймаутами, повтором и размыкателем, идемпотентность, outbox | NestJS, TypeORM, undici, opossum, kafkajs |
+| `services/notification` | уведомления: потребитель событий заказа с защитой от повторной доставки | NestJS, TypeORM, kafkajs |
+| `contracts` | внешний контракт событий заказа: AsyncAPI, схемы и пакет типов для продюсера и потребителей | AsyncAPI 3, TypeScript |
 
-Дальше по плану появляются `services/payment`, `services/notification`,
-`services/bff`, `web` и `contracts` - по образцу Java- и Go-версий ([план](docs/practicum/PLAN.md)).
+Контракт событий лежит в [`contracts/`](contracts/README.md): AsyncAPI-документ, схемы полей и пакет
+`@marketplace/contracts-orders-v1`, который `order` и `notification` подключают зависимостью `file:`, так что
+продюсер и потребитель компилируются против одних типов. Дальше по плану появляются `services/payment`,
+`services/bff` и `web` - по образцу Java- и Go-версий ([план](docs/practicum/PLAN.md)).
 
 ## С чего начинать
 

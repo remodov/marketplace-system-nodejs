@@ -14,6 +14,7 @@ const forbiddenInCore = [
   'reflect-metadata',
   'opossum',
   'undici',
+  'kafkajs',
   'node:http',
   'http',
   'https',

@@ -6,48 +6,51 @@ Order Service из сквозного маркетплейс-кейса сайт
 
 **Уровень 3** методологии Use Case Pattern: агрегат `Order` с позициями и правилами внутри, команда и
 обработчик сценария с явными портами, выходной адаптер к каталогу с таймаутами, повтором и размыкателем.
-С девятого шага создание заказа идемпотентно по заголовку `Idempotency-Key`. Статусная модель, outbox и сага
-появляются на следующих шагах.
+С девятого шага создание заказа идемпотентно по заголовку `Idempotency-Key`, с десятого событие `OrderCreated`
+уезжает соседям через outbox и Kafka по внешнему контракту из [`contracts/`](../../contracts/). Статусная модель
+и сага появляются на следующих шагах.
 
 Спецификация в [`docs/spec/`](docs/spec/), контракт REST в [`docs/order.openapi.yaml`](docs/order.openapi.yaml).
 
 ## Как устроен сервис
 
 ```
-src/main.ts                             точка входа: конфигурация, миграции, сервер, остановка
+src/main.ts                             точка входа: конфигурация, миграции, сервер, запуск relay, остановка
 src/
   core/
     apperr.ts                           ошибки с видом и кодом, общие для ядра и адаптеров
     security/                           Principal из токена, роли
     order/
-      aggregate/                        Order и Item: поля закрыты, правила в методах, Money и Address
-      port/out/                         интерфейсы: репозиторий, ключи идемпотентности, шлюз каталога, часы, идентификаторы, единица работы
-      usecase/                          команда CreateOrder и её обработчик: ключ идемпотентности, цены, транзакция
+      aggregate/                        Order и Item: поля закрыты, правила в методах, Money и Address, события заказа
+      port/out/                         интерфейсы: репозиторий, ключи идемпотентности, outbox, издатель событий, шлюз каталога, часы, идентификаторы, единица работы
+      usecase/                          команда CreateOrder и её обработчик; relay outbox как фоновый сценарий
       query/                            чтение заказа с проверкой владения
   adapter/
     in/http/                            контроллеры NestJS, Problem Details, роли в guard, DTO, заголовок Idempotency-Key и хеш тела
     out/catalog/                        HTTP-клиент каталога: undici, таймауты, повтор, размыкатель opossum
-    out/persistence/                    TypeORM: строки-сущности, миграции, транзакция, ключи идемпотентности
-    out/system/                         системные часы и uuid
+    out/persistence/                    TypeORM: строки-сущности, миграции, транзакция, ключи идемпотентности, outbox
+    out/kafka/                          издатель событий на kafkajs: ключ, заголовки, acks=all
+    out/system/                         системные часы и uuid, издатель в лог, журнал relay
   bootstrap/                            конфигурация, настройки клиента каталога, сборка зависимостей, AppModule
 ```
 
-Ядро не знает ни про NestJS, ни про TypeORM, ни про opossum: это стережёт `test/architecture.spec.ts`.
+Ядро не знает ни про NestJS, ни про TypeORM, ни про opossum, ни про kafkajs: это стережёт `test/architecture.spec.ts`.
 Каталог для ядра - интерфейс `CatalogGateway`, который отдаёт цены или ошибку с кодом; как именно клиент
 добывает цены и когда сдаётся, ядро не видит.
 
 ## Запуск
 
 ```bash
-docker compose -f ../../infra/compose.yaml up -d postgres-catalog-starter
+docker compose -f ../../infra/compose.yaml up -d postgres-catalog-starter kafka
 (cd ../catalog && npm install && npm run build && npm start &)
 npm install
 npm run build && npm start
 ```
 
 Переменные: `HTTP_PORT` (`3081`), `DATABASE_URL` (`postgres://catalog:catalog@localhost:5450/orders`),
-`CATALOG_URL` (`http://localhost:3080`), `AUTH_MODE` (`local` или `jwt`), для `jwt` ещё `JWKS_URL`,
-`JWT_ISSUER`, `JWT_AUDIENCE`.
+`CATALOG_URL` (`http://localhost:3080`), `KAFKA_BROKERS` (`localhost:9095`), `KAFKA_TOPIC` (`marketplace.orders.v1`),
+`EVENT_PUBLISHER` (`kafka`; `log` - события только в лог, без брокера), `OUTBOX_RELAY_INTERVAL_MS` (`1000`),
+`AUTH_MODE` (`local` или `jwt`), для `jwt` ещё `JWKS_URL`, `JWT_ISSUER`, `JWT_AUDIENCE`.
 
 В режиме `local` токен это строка `role.uuid`, роли `customer`, `seller`, `admin`:
 
@@ -89,6 +92,47 @@ curl -s -X POST localhost:3081/api/v1/orders -H "Authorization: Bearer customer.
 (`src/adapter/in/http/idempotency.ts`) как SHA-256 от канонического JSON разобранного запроса с отсортированными
 ключами, в ядро доезжает уже строкой.
 
+## Событие уезжает через outbox
+
+Агрегат при создании регистрирует `OrderCreated` (`src/core/order/aggregate/events.ts`); обработчик сценария
+забирает события `order.pullEvents()` и кладёт их в таблицу `outbox` через `tx.outbox.append` в той же транзакции,
+что заказ и ключ идемпотентности. Фоновый цикл relay (`OutboxRelay.run` в `src/core/order/usecase/relay-outbox.ts`,
+запускается из `main.ts` после старта HTTP) раз в `OUTBOX_RELAY_INTERVAL_MS` берёт пачку строк с
+`published_at IS NULL` под `FOR UPDATE SKIP LOCKED`, публикует каждую через порт `ExternalEventPublisher` и помечает
+отправленной в той же транзакции; упал брокер - транзакция откатилась, строки остались, следующий круг повторит.
+Остановка приложения (`OnApplicationShutdown`) ждёт конца текущей пачки, а не рвёт её.
+
+Payload строки это внешний контракт, а не дамп внутреннего типа: `payloadOf` в
+`src/adapter/out/persistence/outbox.repository.ts` собирает `OrderCreatedPayload` из пакета
+[`@marketplace/contracts-orders-v1`](../../contracts/orders/v1/) - `customerId` строкой, сумма десятичной строкой,
+ничего лишнего. `JSON.stringify(event)` внутреннего события дал бы поле `type`, `total` объектом и массив `items`,
+и потребитель такой payload отклоняет. Издатель `src/adapter/out/kafka/kafka.publisher.ts` пишет в топик
+`marketplace.orders.v1` с ключом `aggregateId` и заголовками `event-id`, `event-type`, `event-version`,
+`aggregate-type`, `aggregate-id`, `occurred-at`; по `event-id` потребитель отбрасывает повторную доставку.
+
+## Сквозной прогон
+
+Проверено руками на стенде из compose: `catalog` (3080), `order` (3081) и `notification` (3085) из собранных `dist`,
+причём `notification` поднят первым, когда топика в Kafka ещё не было.
+
+```bash
+SELLER=$(uuidgen | tr A-Z a-z); CUSTOMER=$(uuidgen | tr A-Z a-z)
+PRODUCT=$(curl -s -X POST localhost:3080/api/v1/products -H "Authorization: Bearer seller.$SELLER" \
+  -H 'Content-Type: application/json' -d '{"title":"Кофемолка","price":2490.5,"currency":"RUB"}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["id"])')
+curl -s -o /dev/null -X POST localhost:3080/api/v1/products/$PRODUCT/publish -H "Authorization: Bearer seller.$SELLER"
+curl -s -X POST localhost:3081/api/v1/orders -H "Authorization: Bearer customer.$CUSTOMER" -H "Idempotency-Key: $(uuidgen)" \
+  -H 'Content-Type: application/json' \
+  -d "{\"items\":[{\"productId\":\"$PRODUCT\",\"sellerId\":\"$SELLER\",\"quantity\":2}],\"shippingAddress\":{\"country\":\"RU\",\"city\":\"Москва\",\"street\":\"Тверская, 1\",\"postalCode\":\"125009\"}}"
+sleep 3
+curl -s "localhost:3085/api/v1/notifications?userId=$CUSTOMER" -H 'Authorization: Bearer admin'
+```
+
+Результат: заказ `DRAFT` на 4981.00, повтор с тем же `Idempotency-Key` отвечает 200 и второй строки в `outbox` не
+даёт; в логе `order` через секунду `relay: события отправлены, 1`, строка в `outbox` помечена; `notification` при
+старте пишет `топик marketplace.orders.v1 создан, продюсер его ещё не писал`, затем `читаем marketplace.orders.v1`,
+и уже через две секунды после заказа отдаёт одно уведомление покупателю: `eventType: OrderCreated`,
+`templateKey: order-created`, `status: PENDING`. Без `Authorization: Bearer admin` тот же запрос даёт 403.
+
 ## Тесты
 
 ```bash
@@ -99,8 +143,12 @@ npm test
 Каталог в тестах подменяется локальным `http.createServer`, который умеет держать ответ, рвать соединение
 и отвечать 404: четыре проверки в `test/catalog-resilience.spec.ts` закрывают повтор, лежащий каталог,
 таймаут и размыкатель. Пять проверок в `test/idempotency.spec.ts` закрывают повтор с тем же ключом, конфликт
-хеша, разные ключи, восемь одновременных запросов и отсутствие заголовка. Числа клиента в тестах уменьшены
-через `testSettings` в `test/support.ts`. `npm test` сначала прогоняет `tsc --noEmit`.
+хеша, разные ключи, восемь одновременных запросов и отсутствие заголовка. Пять проверок в `test/outbox.spec.ts`
+закрывают строку outbox вместе с заказом, поля payload по контракту, повтор без второго события, relay с пометкой
+и лежащий брокер. `test/kafka-publisher.spec.ts` ждёт Kafka со стенда (`KAFKA_BROKERS`), публикует сообщение
+в отдельный топик и читает его консьюмером kafkajs; если брокер не поднят, проверка пропускается с предупреждением.
+Предупреждение `TimeoutNegativeWarning` в выводе идёт из внутренней очереди запросов kafkajs и на результат не влияет.
+Числа клиента в тестах уменьшены через `testSettings` в `test/support.ts`. `npm test` сначала прогоняет `tsc --noEmit`.
 
 ## Коды ошибок
 
@@ -116,3 +164,6 @@ npm test
 - [Гексагональная архитектура на Node](https://vikulin-va.ru/patterns/hexagonal/node/core-layer/): почему каталог для ядра - интерфейс.
 - [HTTP-заголовки и Idempotency-Key на Node](https://vikulin-va.ru/rest-api/node/headers/): ключ занимается до операции.
 - [Идемпотентность запросов при остановке](https://vikulin-va.ru/graceful-shutdown/node/idempotency-in-flight/): что будет с ключом, если сервис погасили на полпути.
+- [Распределённые паттерны на Node](https://vikulin-va.ru/patterns/node/distributed-patterns/): outbox и идемпотентный потребитель.
+- [Фоновые задачи и outbox-relay при остановке](https://vikulin-va.ru/graceful-shutdown/node/scheduled-async-outbox/).
+- [Kafka на Node в production](https://vikulin-va.ru/kafka/node/production-essentials/): заголовки, acks, commit offset.

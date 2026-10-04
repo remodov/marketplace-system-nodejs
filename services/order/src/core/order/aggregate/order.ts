@@ -1,5 +1,6 @@
 import Decimal from 'decimal.js';
 import { invalid } from '../../apperr';
+import { OrderEvent, snapshotsOf } from './events';
 
 export const CURRENCY = 'RUB';
 export const MAX_QUANTITY = 999;
@@ -119,6 +120,8 @@ export type NewOrder = {
 };
 
 export class Order {
+  private readonly pending: OrderEvent[] = [];
+
   private constructor(private readonly fields: OrderState) {}
 
   static create(input: NewOrder): Order {
@@ -133,7 +136,7 @@ export class Order {
       if (seen.has(productId)) throw invalid('VALIDATION_ERROR', `Товар ${productId} повторяется в позициях заказа`);
       seen.add(productId);
     }
-    return new Order({
+    const order = new Order({
       id: input.id,
       customerId: input.customerId,
       sellerId,
@@ -144,6 +147,16 @@ export class Order {
       createdAt: input.now,
       updatedAt: input.now,
     });
+    order.pending.push({
+      type: 'OrderCreated',
+      orderId: input.id,
+      customerId: input.customerId,
+      sellerId,
+      total: order.total(),
+      items: snapshotsOf(input.items),
+      occurredAt: input.now,
+    });
+    return order;
   }
 
   static restore(state: OrderState): Order {
@@ -160,5 +173,9 @@ export class Order {
 
   ownedBy(customerId: string): boolean {
     return this.fields.customerId === customerId;
+  }
+
+  pullEvents(): OrderEvent[] {
+    return this.pending.splice(0);
   }
 }

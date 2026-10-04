@@ -11,7 +11,8 @@ import { AppModule } from '../src/bootstrap/app.module';
 import { Config } from '../src/bootstrap/config';
 import { configureApp } from '../src/bootstrap/configure-app';
 import { catalogSettings } from '../src/bootstrap/wiring';
-import { CatalogGateway } from '../src/core/order/port/out/ports';
+import { CatalogGateway, ExternalEventPublisher, OutboxMessage } from '../src/core/order/port/out/ports';
+import { OutboxRelay } from '../src/core/order/usecase/relay-outbox';
 
 export const now = new Date('2026-04-28T11:00:00Z');
 
@@ -23,27 +24,57 @@ export const testConfig: Config = {
   jwksUrl: '',
   jwtIssuer: '',
   jwtAudience: '',
+  publisherMode: 'log',
+  kafkaBrokers: [],
+  kafkaTopic: 'marketplace.orders.v1',
+  outboxRelayIntervalMs: 0,
 };
 
 export function testSettings(baseUrl: string): CatalogSettings {
   return { ...catalogSettings(baseUrl), requestTimeoutMs: 300, backoffMs: 20, breakerMinRequests: 100 };
 }
 
+export class RecordingPublisher implements ExternalEventPublisher {
+  private readonly messages: OutboxMessage[] = [];
+
+  constructor(private readonly failure?: Error) {}
+
+  async publish(message: OutboxMessage): Promise<void> {
+    if (this.failure) throw this.failure;
+    this.messages.push(message);
+  }
+
+  published(): OutboxMessage[] {
+    return [...this.messages];
+  }
+}
+
 type Method = 'get' | 'post';
+
+export type OutboxRow = {
+  id: string;
+  aggregateId: string;
+  eventType: string;
+  payload: string;
+  published: boolean;
+};
 
 export type Stand = {
   app: INestApplication;
   db: DataSource;
+  relay: OutboxRelay;
   call(method: Method, path: string, token: string, body?: unknown): request.Test;
   postOrder(token: string, body?: unknown, idempotencyKey?: string): request.Test;
   clearTables(): Promise<void>;
   ordersInDb(): Promise<number>;
+  outboxRows(): Promise<OutboxRow[]>;
+  givenOutboxRow(eventType: string, payload: string, occurredAt?: Date): Promise<string>;
   close(): Promise<void>;
 };
 
-export async function stand(catalog: CatalogGateway): Promise<Stand> {
+export async function stand(catalog: CatalogGateway, publisher: ExternalEventPublisher = new RecordingPublisher()): Promise<Stand> {
   const moduleRef = await Test.createTestingModule({
-    imports: [AppModule.forConfig(testConfig, { clock: { now: () => now }, catalog })],
+    imports: [AppModule.forConfig(testConfig, { clock: { now: () => now }, catalog, publisher })],
   }).compile();
   const app = configureApp(moduleRef.createNestApplication({ logger: false }));
   await app.init();
@@ -56,14 +87,30 @@ export async function stand(catalog: CatalogGateway): Promise<Stand> {
   return {
     app,
     db,
+    relay: app.get(OutboxRelay),
     call,
     postOrder: (token, body, idempotencyKey = randomUUID()) => call('post', '/api/v1/orders', token, body).set('Idempotency-Key', idempotencyKey),
     clearTables: async () => {
-      await db.query('TRUNCATE idempotency_keys, order_items, orders');
+      await db.query('TRUNCATE outbox, idempotency_keys, order_items, orders');
     },
     ordersInDb: async () => {
       const rows: { count: string }[] = await db.query('SELECT count(*)::text AS count FROM orders');
       return Number(rows[0].count);
+    },
+    outboxRows: async () => {
+      const rows: { id: string; aggregate_id: string; event_type: string; payload: string; published: boolean }[] = await db.query(
+        'SELECT id, aggregate_id, event_type, payload::text AS payload, published_at IS NOT NULL AS published FROM outbox ORDER BY occurred_at, id',
+      );
+      return rows.map((row) => ({ id: row.id, aggregateId: row.aggregate_id, eventType: row.event_type, payload: row.payload, published: row.published }));
+    },
+    givenOutboxRow: async (eventType, payload, occurredAt = now) => {
+      const id = randomUUID();
+      await db.query(
+        `INSERT INTO outbox (id, aggregate_id, aggregate_type, event_type, event_version, payload, occurred_at)
+         VALUES ($1, $2, 'Order', $3, 1, $4::jsonb, $5)`,
+        [id, randomUUID(), eventType, payload, occurredAt],
+      );
+      return id;
     },
     close: () => app.close(),
   };
