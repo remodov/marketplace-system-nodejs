@@ -14,8 +14,9 @@
 |---|---|---|
 | `services/catalog-starter` | карточки товаров, остатки, резерв, поиск | NestJS, TypeORM, миграции TypeORM, Redis |
 | `services/catalog` | те же карточки по-взрослому: слои, спецификация, роли, владение, журнал администратора | NestJS, TypeORM, jose, архитектурные тесты |
+| `services/order` | заказы: черновик с ценами из каталога, клиент каталога с таймаутами, повтором и размыкателем | NestJS, TypeORM, undici, opossum |
 
-Дальше по плану появляются `services/order`, `services/payment`, `services/notification`,
+Дальше по плану появляются `services/payment`, `services/notification`,
 `services/bff`, `web` и `contracts` - по образцу Java- и Go-версий ([план](docs/practicum/PLAN.md)).
 
 ## С чего начинать
