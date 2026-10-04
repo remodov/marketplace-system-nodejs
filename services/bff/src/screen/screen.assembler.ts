@@ -1,4 +1,4 @@
-import { DownstreamClient, isNotFound } from './downstream.client';
+import { DownstreamClient, isNotFound, unreachable } from './downstream.client';
 
 export const PAYMENT_NONE = 'NONE';
 export const ORDER = 'order';
@@ -61,20 +61,16 @@ export class ScreenAssembler {
 
   async assemble(orderId: string, authorization: string | undefined): Promise<OrderScreen> {
     const order = await this.order.getJson<OrderResponse>(`/api/v1/orders/${orderId}`, authorization);
-    const [items, paymentStatus] = await Promise.all([
-      Promise.all(order.items.map((line) => this.item(line, authorization))),
-      this.paymentStatus(order.paymentId, authorization),
-    ]);
-    return { orderId: order.id, status: order.status, total: order.total, paymentStatus, items };
+    // TODO шаг 13: собрать экран.
+    // Заказ уже прочитан: из него известны товары (order.items) и идентификатор платежа
+    // (order.paymentId). Осталось добрать карточки товаров (this.catalog, ответ ProductCard)
+    // и статус платежа (this.paymentStatus). Эти походы независимы, и экран не обязан
+    // ждать их по очереди.
+    throw unreachable(CATALOG, new Error(`шаг 13: экран заказа ${order.id} ещё не собирается`));
   }
 
   async close(): Promise<void> {
     await Promise.all([this.order.close(), this.catalog.close(), this.payment.close()]);
-  }
-
-  private async item(line: OrderLine, authorization: string | undefined): Promise<ScreenItem> {
-    const card = await this.catalog.getJson<ProductCard>(`/api/v1/products/${line.productId}`, authorization);
-    return { productId: line.productId, title: card.title, quantity: line.quantity, price: card.price };
   }
 
   private async paymentStatus(paymentId: string | undefined, authorization: string | undefined): Promise<string> {
