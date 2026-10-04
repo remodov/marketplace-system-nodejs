@@ -187,15 +187,18 @@
 
 **Материал:** [/patterns/node/microservices-structural/](https://vikulin-va.ru/patterns/node/microservices-structural/) · [/api-styles/](https://vikulin-va.ru/api-styles/) · [/rest-api/node/rate-limiting-files-deprecation/](https://vikulin-va.ru/rest-api/node/rate-limiting-files-deprecation/) · [/redis/](https://vikulin-va.ru/redis/)
 
-**Даётся:** сервис `services/bff`: ручка `GET /api/v1/screens/order/{id}`, клиенты соседей с
-таймаутом и ошибкой `DownstreamError`, middleware лимита с 429 и `Retry-After`, Redis в стенде.
+**Даётся:** сервис `services/bff` на NestJS: ручка `GET /api/v1/screens/order/{id}`, клиенты соседей на
+undici с таймаутом и ошибкой `DownstreamError`, guard лимита с 429 и `Retry-After`, Redis в стенде, тесты
+на заглушках `http.createServer` и настоящем Redis.
 
 **Ученик:** собирает экран заказа: заказ читается первым, карточки товаров и статус платежа добираются
-параллельно через `Promise.all`, отсутствие платежа это `NONE`; пишет счётчик запросов клиента в
-Redis на минутное окно: `INCR` плюс `EXPIRE` на первом попадании.
+параллельно через `Promise.all`, отсутствие платежа это `NONE`, а не ошибка; пишет счётчик запросов клиента
+в Redis на минутное окно: `INCR` плюс `EXPIRE` на первом попадании, ключ протухает сам, лимит общий для
+всех экземпляров границы.
 
-**Проверка:** экран собирается одним запросом клиента из трёх сервисов; нет платежа, экран всё равно
-собран; лежащий сосед даёт 502 `DOWNSTREAM_UNAVAILABLE`; четвёртый запрос клиента за минуту получает 429.
+**Проверка:** экран собирается одним запросом клиента из трёх сервисов по одному походу к каждому; нет
+платежа, экран всё равно собран; лежащий сосед даёт 502 `DOWNSTREAM_UNAVAILABLE`; четвёртый запрос клиента
+за минуту получает 429 с `Retry-After`; сосед чужую квоту не расходует.
 
 ## Шаг 14. Веб-клиент и продуктовые числа
 

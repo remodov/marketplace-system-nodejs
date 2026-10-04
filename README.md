@@ -17,12 +17,13 @@
 | `services/order` | заказы: черновик с ценами из каталога, клиент каталога с таймаутами, повтором и размыкателем, идемпотентность, outbox, статусная модель и сага отмены | NestJS, TypeORM, undici, opossum, kafkajs |
 | `services/payment` | платежи: автомат статусов, одна авторизация на заказ, безопасный повторный возврат | NestJS, `pg` без ORM |
 | `services/notification` | уведомления: потребитель событий заказа с защитой от повторной доставки | NestJS, TypeORM, kafkajs |
+| `services/bff` | граница системы: экран заказа одним запросом из трёх сервисов, лимит частоты на клиента в Redis | NestJS, undici, ioredis |
 | `contracts` | внешние контракты событий заказа и платежа: AsyncAPI, схемы и пакеты типов для продюсера и потребителей | AsyncAPI 3, TypeScript |
 
 Контракты событий лежат в [`contracts/`](contracts/README.md): AsyncAPI-документы, схемы полей и пакеты
 `@marketplace/contracts-orders-v1` и `@marketplace/contracts-payments-v1`, которые сервисы подключают зависимостью
-`file:`, так что продюсер и потребитель компилируются против одних типов. Дальше по плану появляются
-`services/bff` и `web` - по образцу Java- и Go-версий ([план](docs/practicum/PLAN.md)).
+`file:`, так что продюсер и потребитель компилируются против одних типов. Дальше по плану появляется
+`web` - по образцу Java- и Go-версий ([план](docs/practicum/PLAN.md)).
 
 ## С чего начинать
 
@@ -52,7 +53,7 @@ docker compose -f infra/compose.yaml ps
 | что | порт | зачем |
 |---|---|---|
 | PostgreSQL | 5450 | базы `catalog_starter`, `catalog`, `orders`, `notifications` и `payments` плюс тестовые `*_test` |
-| Redis | 6382 | кэш карточек, шаг 6 |
+| Redis | 6382 | кэш карточек, шаг 6; счётчик лимита частоты в BFF, шаг 13 |
 | Kafka | 9095 | события заказа из outbox, шаг 10; события платежа, шаг 11 |
 | MinIO | 9002, 9003 | изображения товаров, шаг 12 |
 
