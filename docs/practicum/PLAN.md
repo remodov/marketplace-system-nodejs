@@ -1,0 +1,225 @@
+# Практикум на Node.js: маркетплейс по шагам
+
+Сквозная практика к программе «Backend · Node». Вход - знаешь TypeScript, писал обработчики,
+про архитектуру пока читал. Система та же, что в Java- и Go-версиях практикума:
+маркетплейс из разбора [«Как разбить систему на сервисы»](https://vikulin-va.ru/use-case-pattern/case/services-map/).
+
+Ученик не пишет систему с нуля: каркас, конфигурация и тесты даются. Он реализует
+то, ради чего шаг придуман, и проверяет себя зелёным тестом, а не кнопкой
+«показать решение».
+
+## Как устроен шаг
+
+Ветка `step-NN-<тема>` - задание: каркас на месте, реализация вынута, тест красный.
+`TASK.md` в корне сервиса - условие: что сделать, где стоят `TODO`, чем проверяется,
+куда смотреть по дороге. Ветка `step-NN-<тема>-solution` - эталон.
+
+# Часть первая: обычный сервис
+
+## Шаг 1. Запустить каталог и разобрать по частям
+
+**Материал:** [/nestjs/modules-and-di/](https://vikulin-va.ru/nestjs/modules-and-di/) · [/nestjs/controllers-and-routing/](https://vikulin-va.ru/nestjs/controllers-and-routing/) · [/nestjs/config-and-lifecycle/](https://vikulin-va.ru/nestjs/config-and-lifecycle/)
+
+**Даётся:** рабочий `catalog-starter`, база в compose, пять зелёных тестов.
+
+**Ученик:** поднимает базу, запускает сервис, дёргает четыре ручки; отвечает, что
+делает каждый слой и почему тесты идут на настоящей базе.
+
+**Проверка:** `npm test` зелёный, `curl` возвращает созданный товар.
+
+## Шаг 2. Новая ручка на чтение
+
+**Материал:** [/rest-api/node/query-params/](https://vikulin-va.ru/rest-api/node/query-params/) · [/nestjs/persistence-typeorm/](https://vikulin-va.ru/nestjs/persistence-typeorm/) · [/nestjs/controllers-and-routing/](https://vikulin-va.ru/nestjs/controllers-and-routing/)
+
+**Даётся:** красный тест на `GET /products?maxPrice=…`.
+
+**Ученик:** метод репозитория с запросом, метод сервиса, параметр в контроллере.
+
+**Проверка:** тест зеленеет; в логе видно, какой SQL ушёл в базу (`SQL_LOG=1`).
+
+## Шаг 3. Команда, валидация и коды ошибок
+
+**Материал:** [/nestjs/validation-and-pipes/](https://vikulin-va.ru/nestjs/validation-and-pipes/) · [/nestjs/exception-filters/](https://vikulin-va.ru/nestjs/exception-filters/) · [/rest-api/node/errors/](https://vikulin-va.ru/rest-api/node/errors/)
+
+**Даётся:** тесты на 400, 404 и 409; фильтр исключений, который переводит ошибки в Problem Details, как образец.
+
+**Ученик:** изменение цены и остатка: проверки входа в DTO, доменные ошибки в сущности,
+тело ответа в формате Problem Details, правильные коды.
+
+**Проверка:** каждый сценарий отказа отвечает своим кодом, а не пятисоткой.
+
+## Шаг 4. Правило внутри модели
+
+**Материал:** [/domain-driven-design/01-what-is-ddd/](https://vikulin-va.ru/domain-driven-design/01-what-is-ddd/) · [/typescript/classes-and-decorators/](https://vikulin-va.ru/typescript/classes-and-decorators/) · [/domain-driven-design/node/03-tactical-patterns/](https://vikulin-va.ru/domain-driven-design/node/03-tactical-patterns/)
+
+**Даётся:** тесты домена, которым не нужна база, и проверка компилятором, что поля закрыты.
+
+**Ученик:** переносит правила в класс - скидка не больше половины, цена округляется
+до копеек; наружу торчат методы, а не поля.
+
+**Проверка:** доменные тесты зелёные и работают за миллисекунды; правило нельзя
+обойти из сервиса.
+
+## Шаг 5. База: миграции, транзакции, одновременный резерв
+
+**Материал:** [/postgres/acid-and-isolation/](https://vikulin-va.ru/postgres/acid-and-isolation/) · [/postgres/locks/](https://vikulin-va.ru/postgres/locks/) · [/typescript/async-and-event-loop/](https://vikulin-va.ru/typescript/async-and-event-loop/) · [/concurrency/race-conditions/](https://vikulin-va.ru/concurrency/race-conditions/)
+
+**Даётся:** тест на сто одновременных покупателей и тест, который сверяет схему
+после миграций с полями сущности.
+
+**Ученик:** отделяет резерв от остатка - новая колонка `reserved` миграцией,
+`available = stock - reserved`; резерв удерживает товар, а не списывает его.
+Дальше разбирается, почему при обычном чтении продаётся больше, чем есть, и берёт
+строку под блокировку в транзакции.
+
+**Проверка:** сто параллельных резервов на десять единиц продают ровно десять,
+остаток на складе при этом не меняется.
+
+## Шаг 6. Поиск: LIKE, индекс, кэш
+
+**Материал:** [/postgres/indexes-types/](https://vikulin-va.ru/postgres/indexes-types/) · [/redis/caching-patterns/](https://vikulin-va.ru/redis/caching-patterns/) · [/algorithms/](https://vikulin-va.ru/algorithms/)
+
+**Даётся:** генератор на сто тысяч товаров, скрипт замера и тест, который считает
+обращения к базе.
+
+**Ученик:** снимает время ответа на ста тысячах товаров, видит `Seq Scan` в плане,
+заводит триграммный индекс миграцией, потом кладёт карточку товара в кэш и
+сбрасывает запись при любом изменении.
+
+**Проверка:** время ответа до и после - числом; повторный запрос отвечает из кэша,
+правка товара кэш сбрасывает.
+
+# Часть вторая: взрослая система
+
+## Шаг 7. Тот же каталог, но по-взрослому
+
+**Материал:** [/use-case-pattern/](https://vikulin-va.ru/use-case-pattern/) · [/patterns/hexagonal/node/core-layer/](https://vikulin-va.ru/patterns/hexagonal/node/core-layer/) · [/patterns/hexagonal/node/architecture-tests/](https://vikulin-va.ru/patterns/hexagonal/node/architecture-tests/) · [/use-case-pattern/case/](https://vikulin-va.ru/use-case-pattern/case/)
+
+**Даётся:** `services/catalog` - ядро без единого импорта NestJS и TypeORM, порты интерфейсами,
+спецификация, роли и владение, журнал действий администратора; архитектурный тест на
+направление импортов и интеграционные тесты смены цены на настоящей PostgreSQL.
+
+**Ученик:** сравнивает две версии одного сервиса и письменно отвечает, что дала
+сложность и чего стоила; потом переносит смену цены из третьего шага сюда - команда,
+обработчик сценария, метод порта, SQL в адаптере, контроллер.
+
+**Проверка:** шесть проверок смены цены зелёные - цена меняется и доезжает до базы,
+ноль не проходит, чужой товар отдаёт 404, админское изменение оставляет запись в
+журнале, без токена 401; архитектурный тест по-прежнему зелёный.
+
+## Шаг 8. Заказ: сосед отвечает медленно, срывается и лежит
+
+**Материал:** [/patterns/node/resilience/](https://vikulin-va.ru/patterns/node/resilience/) · [/architecture-choice/monolith-vs-microservices/](https://vikulin-va.ru/architecture-choice/monolith-vs-microservices/) · [/use-case-pattern/case/order-service/](https://vikulin-va.ru/use-case-pattern/case/order-service/)
+
+**Даётся:** `services/order` - агрегат заказа, сценарий создания черновика, который ходит в
+`catalog` за ценами, хранение на TypeORM и тесты, где каталог подменён локальным HTTP-сервером:
+он умеет держать ответ, рвать соединение и отвечать 404.
+
+**Ученик:** в клиенте каталога ставит таймауты на соединение и на запрос, повтор с паузой только
+для сетевых ошибок и 5xx, размыкатель на `opossum`; исчерпанные попытки и открытый размыкатель
+превращает в доменное `SERVICE_DEGRADED`, а 404 каталога оставляет `PRODUCT_NOT_FOUND` без повтора.
+
+**Проверка:** четыре проверки клиента зелёные - зависший первый ответ переживается повтором,
+лежащий каталог даёт 503 и ноль заказов в базе, медленный каталог отбивается таймаутом,
+после серии отказов размыкатель перестаёт ходить к каталогу.
+
+## Шаг 9. Идемпотентность
+
+**Материал:** [/rest-api/node/headers/](https://vikulin-va.ru/rest-api/node/headers/) · [/graceful-shutdown/node/idempotency-in-flight/](https://vikulin-va.ru/graceful-shutdown/node/idempotency-in-flight/)
+
+**Даётся:** заголовок `Idempotency-Key` и хеш тела уже доезжают до сценария, таблица
+`idempotency_keys` в миграциях, порт ключей, тесты, которые шлют один и тот же запрос дважды
+и восемь раз разом.
+
+**Ученик:** проверка ключа до работы, занятие ключа вставкой с `ON CONFLICT DO NOTHING` в одной
+транзакции с заказом, ответ проигравшему гонку прежним заказом, конфликт хеша тела кодом
+`IDEMPOTENCY_KEY_CONFLICT`.
+
+**Проверка:** повтор не создаёт второй заказ и возвращает тот же ответ, другой текст под тем
+же ключом даёт 409, восемь одновременных запросов дают один заказ.
+
+## Шаг 10. События, outbox и контракт
+
+**Материал:** [/kafka/node/fundamentals/](https://vikulin-va.ru/kafka/node/fundamentals/) · [/patterns/node/distributed-patterns/](https://vikulin-va.ru/patterns/node/distributed-patterns/) · [/graceful-shutdown/node/scheduled-async-outbox/](https://vikulin-va.ru/graceful-shutdown/node/scheduled-async-outbox/) · [/kafka/node/production-essentials/](https://vikulin-va.ru/kafka/node/production-essentials/)
+
+**Даётся:** таблица `outbox`, агрегат, который регистрирует `OrderCreated`, издатель на kafkajs, Kafka в
+стенде, контракт событий в `contracts/` (AsyncAPI плюс пакет типов) и сервис `notification`
+с консьюмером и журналом `processed_events`.
+
+**Ученик:** пишет событие в outbox в одной транзакции с заказом, собирает payload по внешнему
+контракту, а не из внутреннего типа, и делает relay: пачка под `FOR UPDATE SKIP LOCKED`,
+публикация, пометка отправленного в той же транзакции.
+
+**Проверка:** строка outbox рождается вместе с заказом и не рождается при откате; поля payload
+ровно те, что в контракте; relay публикует и помечает, при лежащем брокере строка остаётся;
+повторная доставка в `notification` не создаёт второе уведомление.
+
+## Шаг 11. Сага и статусная модель заказа
+
+**Материал:** [/patterns/node/distributed-patterns/](https://vikulin-va.ru/patterns/node/distributed-patterns/) · [/state-machines/what-is-a-state-machine/](https://vikulin-va.ru/state-machines/what-is-a-state-machine/) · [/patterns/node/resilience/](https://vikulin-va.ru/patterns/node/resilience/)
+
+**Даётся:** заказ со статусной моделью в агрегате, сага отмены оплаченного заказа с возвратом
+через `payment`, потребитель `PaymentCompleted` с защитой от повтора, фоновая просрочка оплаты;
+каркас `services/payment` на `pg` без ORM с тестами.
+
+**Ученик:** в сервисе платежей описывает автомат статусов разрешёнными переходами, делает одну
+авторизацию на заказ и безопасный повторный возврат.
+
+**Проверка:** переходы ровно те, что описаны, конечные статусы никуда не ведут, повторная
+авторизация возвращает прежний платёж, списать возвращённый платёж нельзя, повторный возврат
+отвечает тем же, а в заказе отказ платежей откатывает отмену.
+
+## Шаг 12. Токены, роли и файлы
+
+**Материал:** [/patterns/auth-patterns/node/jwt-validation/](https://vikulin-va.ru/patterns/auth-patterns/node/jwt-validation/) · [/keycloak/](https://vikulin-va.ru/keycloak/) · [/object-storage/fundamentals/](https://vikulin-va.ru/object-storage/fundamentals/) · [/patterns/hexagonal/node/adapters-out/](https://vikulin-va.ru/patterns/hexagonal/node/adapters-out/)
+
+**Даётся:** каталог с проверкой токена по ключам Keycloak без похода в соседний сервис, роли
+`seller` и `admin` в guard, MinIO в стенде с готовой корзиной `marketplace-images`, порт
+`ImageStorage`, адаптер на S3-клиенте и ручка `POST /api/v1/products/{id}/image-upload-url`.
+
+**Ученик:** подписывает временную ссылку на загрузку; в сценарии проверяет владение товаром:
+чужой товар для не-владельца выглядит как несуществующий, 404 `OWN_PRODUCT_REQUIRED`, а не 403.
+
+**Проверка:** владелец получает ссылку с подписью и сроком; чужой товар даёт 404 с кодом владения;
+неизвестный товар даёт 404; без токена ссылки нет; не картинка отклоняется на входе.
+
+## Шаг 13. Граница системы: экран и лимит частоты
+
+**Материал:** [/patterns/node/microservices-structural/](https://vikulin-va.ru/patterns/node/microservices-structural/) · [/api-styles/](https://vikulin-va.ru/api-styles/) · [/rest-api/node/rate-limiting-files-deprecation/](https://vikulin-va.ru/rest-api/node/rate-limiting-files-deprecation/) · [/redis/](https://vikulin-va.ru/redis/)
+
+**Даётся:** сервис `services/bff`: ручка `GET /api/v1/screens/order/{id}`, клиенты соседей с
+таймаутом и ошибкой `DownstreamError`, middleware лимита с 429 и `Retry-After`, Redis в стенде.
+
+**Ученик:** собирает экран заказа: заказ читается первым, карточки товаров и статус платежа добираются
+параллельно через `Promise.all`, отсутствие платежа это `NONE`; пишет счётчик запросов клиента в
+Redis на минутное окно: `INCR` плюс `EXPIRE` на первом попадании.
+
+**Проверка:** экран собирается одним запросом клиента из трёх сервисов; нет платежа, экран всё равно
+собран; лежащий сосед даёт 502 `DOWNSTREAM_UNAVAILABLE`; четвёртый запрос клиента за минуту получает 429.
+
+## Шаг 14. Веб-клиент и продуктовые числа
+
+**Материал:** [/frontend/](https://vikulin-va.ru/frontend/) · [/product-engineer/ship-and-measure/](https://vikulin-va.ru/product-engineer/ship-and-measure/) · [/nestjs/testing/](https://vikulin-va.ru/nestjs/testing/)
+
+**Даётся:** каталог `web/` на React, TypeScript и Vite: витрина, корзина, оформление с `Idempotency-Key`
+и экран заказа через BFF; воронка с `FunnelSink`, отделённая от отправки; тесты на `vitest`.
+
+**Ученик:** отмечает шаги воронки в компоненте и считает конверсию по шагам без деления на ноль.
+
+**Проверка:** доли дошедших до каждого шага считаются как в примере 10 → 4 → 2 → 1; шаг, до которого
+никто не дошёл, даёт ноль; полный путь покупки виден в воронке целиком.
+
+## Шаг 15. Доставка и наблюдаемость
+
+**Материал:** [/docker/node/dockerizing/](https://vikulin-va.ru/docker/node/dockerizing/) · [/docker/node/runtime/](https://vikulin-va.ru/docker/node/runtime/) · [/kubernetes/](https://vikulin-va.ru/kubernetes/) · [/observability/node/health-checks/](https://vikulin-va.ru/observability/node/health-checks/) · [/observability/node/metrics/](https://vikulin-va.ru/observability/node/metrics/) · [/cicd/](https://vikulin-va.ru/cicd/)
+
+**Даётся:** черновой `Dockerfile` стартового каталога, манифест `deploy/k8s/catalog-starter.yaml`
+без проб и лимитов, эталонный `deploy/k8s/bff.yaml`, пайплайн `.github/workflows/ci.yml`,
+проверка выката `tools/check-deploy.py`, модуль `observability` с гистограммой времени ответа на
+`prom-client` и трассировкой на OpenTelemetry.
+
+**Ученик:** собирает образ в два этапа без dev-зависимостей и без root; в манифесте заводит пробы,
+запросы и лимиты, `preStop` и версию образа вместо `latest`; монтирует пробы и `/metrics` с меткой
+сервиса и включает сэмплирование трасс по доле из настроек.
+
+**Проверка:** `tools/check-deploy.py` без замечаний, четыре проверки наблюдаемости зелёные.

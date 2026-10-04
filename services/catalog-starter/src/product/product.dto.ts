@@ -28,4 +28,8 @@ export class SearchQueryDto {
   @IsOptional()
   @IsString()
   query?: string;
+
+  @IsOptional()
+  @Matches(/^\d+(\.\d{1,2})?$/, { message: 'должна быть положительным числом' })
+  maxPrice?: string;
 }
