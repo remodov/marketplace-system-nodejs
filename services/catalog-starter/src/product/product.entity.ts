@@ -13,6 +13,8 @@ const bigintColumn = {
   from: (value: string) => Number(value),
 };
 
+export const MAX_DISCOUNT_PERCENT = 50;
+
 export type ProductState = {
   id: string;
   title: string;
@@ -58,6 +60,13 @@ export class Product {
   changePrice(newPrice: Decimal): void {
     if (newPrice.lte(0)) throw invalid('цена должна быть больше нуля');
     this.price = newPrice;
+  }
+
+  applyDiscount(percent: number): void {
+    if (percent < 1 || percent > MAX_DISCOUNT_PERCENT) {
+      throw invalid(`скидка допустима от 1 до ${MAX_DISCOUNT_PERCENT} процентов, а не ${percent}`);
+    }
+    this.price = this.price.mul(100 - percent).div(100).toDecimalPlaces(2);
   }
 
   changeStock(delta: number): void {

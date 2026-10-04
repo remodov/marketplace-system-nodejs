@@ -34,6 +34,10 @@ export class ProductService {
     return this.change(id, (p) => p.changePrice(newPrice));
   }
 
+  applyDiscount(id: string, percent: number): Promise<Product> {
+    return this.change(id, (p) => p.applyDiscount(percent));
+  }
+
   changeStock(id: string, delta: number): Promise<Product> {
     return this.change(id, (p) => p.changeStock(delta));
   }
