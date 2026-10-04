@@ -82,6 +82,7 @@ stateDiagram-v2
 | `ChangeProductPrice` | ✅ только свой | ✅ любой | — | — |
 | `GetProduct` | ✅ (свой любой статус) | ✅ | ✅ только `PUBLISHED` | ✅ только `PUBLISHED` |
 | `ListMyProducts` | ✅ только свои | ✅ | — | — |
+| `ListPublished` | ✅ | ✅ | ✅ только `PUBLISHED` | ✅ только `PUBLISHED` |
 
 Изменяющие команды и `ListMyProducts` ограничены владельцем (`seller_id` из токена); `admin` обходит, и каждое его действие над чужим товаром попадает в `catalog_audit_log`. `GetProduct` для не-владельца/анонима/сервиса — только `PUBLISHED`.
 
@@ -141,3 +142,9 @@ Product не публикует доменных событий (Уровень 
 - **Параметры:** seller_id (из токена), status?, page, size
 - **Возвращает:** страница товаров продавца (любые статусы)
 - **Логика:** чтение из `products` по `seller_id` (+ опц. status), пагинация; Read Model нет
+
+### `ListPublished`
+- **Вопрос:** что сейчас лежит на витрине?
+- **Параметры:** page, size, sort; запрашивающий не важен
+- **Возвращает:** страница товаров `PUBLISHED` любых продавцов
+- **Логика:** чтение из `products` по `status = PUBLISHED`, пагинация и сортировка те же, что у `ListMyProducts`; Read Model нет

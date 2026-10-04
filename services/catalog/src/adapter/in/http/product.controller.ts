@@ -16,6 +16,7 @@ import {
   ImageUploadRequest,
   ImageUploadUrlDto,
   ListMyProductsQuery,
+  ListProductsQuery,
   ProductDto,
   ProductPageDto,
   toDto,
@@ -54,15 +55,15 @@ export class ProductController {
     return dto;
   }
 
+  @Get()
+  async listProducts(@Query() query: ListProductsQuery): Promise<ProductPageDto> {
+    return toPageDto(await this.queries.listPublished({ filter: filterOf(query) }));
+  }
+
   @Get('my')
   @Roles(ROLE_SELLER, ROLE_ADMIN)
   async listMyProducts(@CurrentPrincipal() seller: Principal, @Query() query: ListMyProductsQuery): Promise<ProductPageDto> {
-    const filter: ListFilter = {
-      status: query.status,
-      page: intOr(query.page, 1),
-      size: intOr(query.size, 20),
-      sort: sortOf(query.sort),
-    };
+    const filter: ListFilter = { ...filterOf(query), status: query.status };
     return toPageDto(await this.queries.listMyProducts({ sellerId: seller.sub, filter }));
   }
 
@@ -105,6 +106,10 @@ export class ProductController {
   ): Promise<ImageUploadUrlDto> {
     return toUploadUrlDto(await this.upload.handle({ productId: id, requester, contentType: body.contentType }));
   }
+}
+
+function filterOf(query: ListProductsQuery): ListFilter {
+  return { page: intOr(query.page, 1), size: intOr(query.size, 20), sort: sortOf(query.sort) };
 }
 
 function intOr(raw: string | undefined, fallback: number): number {

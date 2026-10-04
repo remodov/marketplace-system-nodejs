@@ -13,6 +13,10 @@ export type ListMyProducts = {
   filter: ListFilter;
 };
 
+export type ListPublished = {
+  filter: ListFilter;
+};
+
 export class QueryHandler {
   constructor(private readonly products: ProductRepository) {}
 
@@ -25,5 +29,9 @@ export class QueryHandler {
 
   listMyProducts(q: ListMyProducts): Promise<ProductPage> {
     return this.products.listBySeller(q.sellerId, q.filter);
+  }
+
+  listPublished(q: ListPublished): Promise<ProductPage> {
+    return this.products.listPublished(q.filter);
   }
 }

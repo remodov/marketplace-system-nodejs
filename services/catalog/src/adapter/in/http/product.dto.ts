@@ -38,11 +38,7 @@ export class ImageUploadRequest {
   contentType!: string;
 }
 
-export class ListMyProductsQuery {
-  @IsOptional()
-  @IsIn(STATUSES, { message: 'DRAFT, PUBLISHED или HIDDEN' })
-  status?: Status;
-
+export class ListProductsQuery {
   @IsOptional()
   @IsString()
   page?: string;
@@ -54,6 +50,12 @@ export class ListMyProductsQuery {
   @IsOptional()
   @IsString()
   sort?: string;
+}
+
+export class ListMyProductsQuery extends ListProductsQuery {
+  @IsOptional()
+  @IsIn(STATUSES, { message: 'DRAFT, PUBLISHED или HIDDEN' })
+  status?: Status;
 }
 
 export type ProductDto = {

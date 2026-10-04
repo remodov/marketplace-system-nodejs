@@ -24,6 +24,7 @@ export interface ProductRepository {
   insert(product: Product): Promise<void>;
   update(product: Product): Promise<void>;
   listBySeller(sellerId: string, filter: ListFilter): Promise<ProductPage>;
+  listPublished(filter: ListFilter): Promise<ProductPage>;
 }
 
 export const ACTION_PRODUCT_PUBLISHED = 'PRODUCT_PUBLISHED';

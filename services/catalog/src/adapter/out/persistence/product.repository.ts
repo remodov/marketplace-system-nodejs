@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js';
-import { EntityManager } from 'typeorm';
+import { EntityManager, SelectQueryBuilder } from 'typeorm';
 import { notFound } from '../../../core/apperr';
 import { parseStatus, Product } from '../../../core/product/aggregate/product';
 import { ListFilter, ProductPage, ProductRepository, SortField } from '../../../core/product/port/out/ports';
@@ -40,11 +40,19 @@ export class TypeOrmProductRepository implements ProductRepository {
     if (result.affected === 0) throw productNotFound(row.id);
   }
 
-  async listBySeller(sellerId: string, filter: ListFilter): Promise<ProductPage> {
-    const page = filter.page < 1 ? 1 : filter.page;
-    const size = filter.size < 1 || filter.size > 100 ? 20 : filter.size;
+  listBySeller(sellerId: string, filter: ListFilter): Promise<ProductPage> {
     const query = this.query().where('p.sellerId = :sellerId', { sellerId });
     if (filter.status) query.andWhere('p.status = :status', { status: filter.status });
+    return this.list(query, filter);
+  }
+
+  listPublished(filter: ListFilter): Promise<ProductPage> {
+    return this.list(this.query().where('p.status = :status', { status: 'PUBLISHED' }), filter);
+  }
+
+  private async list(query: SelectQueryBuilder<ProductRow>, filter: ListFilter): Promise<ProductPage> {
+    const page = filter.page < 1 ? 1 : filter.page;
+    const size = filter.size < 1 || filter.size > 100 ? 20 : filter.size;
     const [rows, total] = await query
       .orderBy(orderBy[filter.sort] ?? orderBy['createdAt,desc'])
       .skip((page - 1) * size)
