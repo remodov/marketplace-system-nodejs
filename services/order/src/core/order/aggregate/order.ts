@@ -1,9 +1,11 @@
 import Decimal from 'decimal.js';
-import { invalid } from '../../apperr';
-import { OrderEvent, snapshotsOf } from './events';
+import { conflict, invalid } from '../../apperr';
+import { OrderEvent, OrderEventBase, snapshotsOf } from './events';
 
 export const CURRENCY = 'RUB';
 export const MAX_QUANTITY = 999;
+export const MIN_CONFIRM_AMOUNT = new Decimal(100);
+export const MAX_CANCELLATION_COMMENT_LENGTH = 500;
 
 export type Status =
   | 'DRAFT'
@@ -65,6 +67,28 @@ export type Address = {
   pickupPoint: string;
 };
 
+export type CancellationReason = {
+  code: string;
+  comment: string;
+};
+
+export function cancellationReasonOf(code: string, comment = ''): CancellationReason {
+  const normalized = code.trim().toUpperCase();
+  if (normalized === '') throw invalid('VALIDATION_ERROR', 'Нужен код причины отмены');
+  if ([...comment].length > MAX_CANCELLATION_COMMENT_LENGTH) {
+    throw invalid('VALIDATION_ERROR', `Комментарий к отмене не длиннее ${MAX_CANCELLATION_COMMENT_LENGTH} символов`);
+  }
+  return { code: normalized, comment };
+}
+
+export type LifecycleState = {
+  paymentId?: string;
+  paidAt?: Date;
+  shippedAt?: Date;
+  deliveredAt?: Date;
+  closedAt?: Date;
+};
+
 export type ItemState = {
   id: string;
   productId: string;
@@ -109,6 +133,7 @@ export type OrderState = {
   shippingAddress: Address;
   createdAt: Date;
   updatedAt: Date;
+  lifecycle: LifecycleState;
 };
 
 export type NewOrder = {
@@ -146,25 +171,18 @@ export class Order {
       shippingAddress: input.shippingAddress,
       createdAt: input.now,
       updatedAt: input.now,
+      lifecycle: {},
     });
-    order.pending.push({
-      type: 'OrderCreated',
-      orderId: input.id,
-      customerId: input.customerId,
-      sellerId,
-      total: order.total(),
-      items: snapshotsOf(input.items),
-      occurredAt: input.now,
-    });
+    order.register({ type: 'OrderCreated', ...order.base(input.now), total: order.total(), items: snapshotsOf(input.items) });
     return order;
   }
 
   static restore(state: OrderState): Order {
-    return new Order({ ...state, items: [...state.items] });
+    return new Order({ ...state, items: [...state.items], lifecycle: { ...state.lifecycle } });
   }
 
   state(): OrderState {
-    return { ...this.fields, items: [...this.fields.items] };
+    return { ...this.fields, items: [...this.fields.items], lifecycle: { ...this.fields.lifecycle } };
   }
 
   total(): Money {
@@ -175,7 +193,100 @@ export class Order {
     return this.fields.customerId === customerId;
   }
 
+  soldBy(sellerId: string): boolean {
+    return this.fields.sellerId === sellerId;
+  }
+
+  isPaidWith(paymentId: string): boolean {
+    return this.fields.status === 'PAID' && this.fields.lifecycle.paymentId === paymentId;
+  }
+
+  refundablePaymentId(): string {
+    this.require('PAID', 'вернуть деньги');
+    const paymentId = this.fields.lifecycle.paymentId;
+    if (paymentId === undefined) throw new Error(`у оплаченного заказа ${this.fields.id} нет идентификатора платежа`);
+    return paymentId;
+  }
+
+  confirm(now: Date): void {
+    this.require('DRAFT', 'подтвердить');
+    if (this.fields.items.length === 0) throw invalid('EMPTY_ORDER', 'В заказе нет ни одной позиции');
+    const total = this.total();
+    if (total.amount.lessThan(MIN_CONFIRM_AMOUNT)) {
+      throw invalid('ORDER_BELOW_MINIMUM', `Сумма заказа ${total.amount.toFixed(2)} меньше минимальной ${MIN_CONFIRM_AMOUNT.toFixed(2)}`);
+    }
+    this.moveTo('PENDING_PAYMENT', now);
+    this.register({ type: 'OrderConfirmed', ...this.base(now), total });
+  }
+
+  markPaid(paymentId: string, now: Date): void {
+    this.require('PENDING_PAYMENT', 'оплатить');
+    this.moveTo('PAID', now);
+    this.fields.lifecycle.paymentId = paymentId;
+    this.fields.lifecycle.paidAt = now;
+    this.register({ type: 'OrderPaid', ...this.base(now), paymentId, total: this.total() });
+  }
+
+  cancel(reason: CancellationReason, now: Date): void {
+    if (this.fields.status !== 'DRAFT' && this.fields.status !== 'PENDING_PAYMENT') throw this.invalidState('отменить без возврата');
+    const previousStatus = this.fields.status;
+    this.moveTo('CANCELLED', now);
+    this.fields.lifecycle.closedAt = now;
+    this.register({ type: 'OrderCancelled', ...this.base(now), previousStatus, reason });
+  }
+
+  cancelAfterPayment(reason: CancellationReason, refundId: string, now: Date): void {
+    this.require('PAID', 'отменить с возвратом');
+    const previousStatus = this.fields.status;
+    this.moveTo('CANCELLED', now);
+    this.fields.lifecycle.closedAt = now;
+    this.register({ type: 'OrderCancelled', ...this.base(now), previousStatus, reason, refundId });
+  }
+
+  expire(now: Date): void {
+    this.require('PENDING_PAYMENT', 'закрыть по таймауту');
+    this.moveTo('EXPIRED', now);
+    this.fields.lifecycle.closedAt = now;
+    this.register({ type: 'OrderExpired', ...this.base(now) });
+  }
+
+  markShipped(trackingNumber: string, now: Date): void {
+    if (trackingNumber.trim() === '') throw invalid('VALIDATION_ERROR', 'Нужен трек-номер отправления');
+    this.require('PAID', 'передать в доставку');
+    this.moveTo('SHIPPED', now);
+    this.fields.lifecycle.shippedAt = now;
+    this.register({ type: 'OrderShipped', ...this.base(now), trackingNumber });
+  }
+
+  confirmDelivery(now: Date): void {
+    this.require('SHIPPED', 'подтвердить получение');
+    this.moveTo('DELIVERED', now);
+    this.fields.lifecycle.deliveredAt = now;
+    this.register({ type: 'OrderDelivered', ...this.base(now) });
+  }
+
   pullEvents(): OrderEvent[] {
     return this.pending.splice(0);
+  }
+
+  private require(expected: Status, action: string): void {
+    if (this.fields.status !== expected) throw this.invalidState(action);
+  }
+
+  private invalidState(action: string) {
+    return conflict('ORDER_INVALID_STATE', `Заказ в статусе ${this.fields.status} нельзя ${action}`);
+  }
+
+  private moveTo(next: Status, now: Date): void {
+    this.fields.status = next;
+    this.fields.updatedAt = now;
+  }
+
+  private base(now: Date): OrderEventBase {
+    return { orderId: this.fields.id, customerId: this.fields.customerId, sellerId: this.fields.sellerId, occurredAt: now };
+  }
+
+  private register(event: OrderEvent): void {
+    this.pending.push(event);
   }
 }

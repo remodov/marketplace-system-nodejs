@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsDefined, IsInt, IsOptional, IsString, IsUUID, Matches, Max, Min, ValidateNested } from 'class-validator';
-import { Address, Item, MAX_QUANTITY, Order, Status } from '../../../core/order/aggregate/order';
+import { ArrayMinSize, IsArray, IsDefined, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { Address, Item, LifecycleState, MAX_CANCELLATION_COMMENT_LENGTH, MAX_QUANTITY, Order, Status } from '../../../core/order/aggregate/order';
 import { OrderLine } from '../../../core/order/usecase/create-order';
 
 export class AddressRequest {
@@ -57,6 +57,31 @@ export class CreateOrderRequest {
   shippingAddress!: AddressRequest;
 }
 
+export class CancelOrderRequest {
+  @IsDefined({ message: 'обязательное поле' })
+  @IsString({ message: 'должен быть строкой' })
+  @Matches(/\S/, { message: 'обязательное поле' })
+  reasonCode!: string;
+
+  @IsOptional()
+  @IsString({ message: 'должен быть строкой' })
+  @MaxLength(MAX_CANCELLATION_COMMENT_LENGTH, { message: `не длиннее ${MAX_CANCELLATION_COMMENT_LENGTH} символов` })
+  comment?: string;
+}
+
+export class ShipOrderRequest {
+  @IsDefined({ message: 'обязательное поле' })
+  @IsString({ message: 'должен быть строкой' })
+  @Matches(/\S/, { message: 'обязательное поле' })
+  trackingNumber!: string;
+}
+
+export class PayOrderRequest {
+  @IsDefined({ message: 'обязательное поле' })
+  @IsUUID('all', { message: 'должен быть UUID' })
+  paymentId!: string;
+}
+
 export type AddressDto = {
   country: string;
   city: string;
@@ -84,9 +109,16 @@ export type OrderDto = {
   total: number;
   currency: string;
   shippingAddress: AddressDto;
+  paymentId?: string;
+  paidAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  closedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
+
+type LifecycleDto = Pick<OrderDto, 'paymentId' | 'paidAt' | 'shippedAt' | 'deliveredAt' | 'closedAt'>;
 
 export function toLine(item: OrderItemRequest): OrderLine {
   return { productId: item.productId.toLowerCase(), sellerId: item.sellerId.toLowerCase(), quantity: item.quantity };
@@ -137,7 +169,18 @@ export function toDto(order: Order): OrderDto {
     total: total.amount.toNumber(),
     currency: total.currency,
     shippingAddress: toAddressDto(s.shippingAddress),
+    ...toLifecycleDto(s.lifecycle),
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
+  };
+}
+
+function toLifecycleDto(lifecycle: LifecycleState): LifecycleDto {
+  return {
+    ...(lifecycle.paymentId === undefined ? {} : { paymentId: lifecycle.paymentId }),
+    ...(lifecycle.paidAt === undefined ? {} : { paidAt: lifecycle.paidAt.toISOString() }),
+    ...(lifecycle.shippedAt === undefined ? {} : { shippedAt: lifecycle.shippedAt.toISOString() }),
+    ...(lifecycle.deliveredAt === undefined ? {} : { deliveredAt: lifecycle.deliveredAt.toISOString() }),
+    ...(lifecycle.closedAt === undefined ? {} : { closedAt: lifecycle.closedAt.toISOString() }),
   };
 }

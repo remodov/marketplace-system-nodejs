@@ -1,9 +1,13 @@
 import Decimal from 'decimal.js';
-import { EntityManager } from 'typeorm';
+import { EntityManager, FindOneOptions } from 'typeorm';
 import { notFound } from '../../../core/apperr';
-import { Address, Item, Money, Order, parseStatus } from '../../../core/order/aggregate/order';
+import { Address, Item, LifecycleState, Money, Order, parseStatus } from '../../../core/order/aggregate/order';
 import { OrderRepository } from '../../../core/order/port/out/ports';
 import { AddressJson, OrderItemRow, OrderRow } from './rows';
+
+type RowLock = FindOneOptions<OrderRow>['lock'];
+
+type LifecycleColumns = Pick<OrderRow, 'paymentId' | 'paidAt' | 'shippedAt' | 'deliveredAt' | 'closedAt'>;
 
 export class TypeOrmOrderRepository implements OrderRepository {
   constructor(private readonly manager: EntityManager) {}
@@ -17,8 +21,29 @@ export class TypeOrmOrderRepository implements OrderRepository {
     );
   }
 
-  async byId(id: string): Promise<Order> {
-    const row = await this.manager.findOne(OrderRow, { where: { id } });
+  byId(id: string): Promise<Order> {
+    return this.load(id);
+  }
+
+  byIdForUpdate(id: string): Promise<Order> {
+    return this.load(id, { mode: 'pessimistic_write' });
+  }
+
+  async update(order: Order): Promise<void> {
+    const s = order.state();
+    await this.manager.update(OrderRow, { id: s.id }, { status: s.status, updatedAt: s.updatedAt, ...lifecycleColumns(s.lifecycle) });
+  }
+
+  async pendingPaymentBefore(before: Date, limit: number): Promise<string[]> {
+    const rows: { id: string }[] = await this.manager.query(
+      "SELECT id FROM orders WHERE status = 'PENDING_PAYMENT' AND updated_at < $1 ORDER BY updated_at LIMIT $2",
+      [before, limit],
+    );
+    return rows.map((row) => row.id);
+  }
+
+  private async load(id: string, lock?: RowLock): Promise<Order> {
+    const row = await this.manager.findOne(OrderRow, { where: { id }, ...(lock ? { lock } : {}) });
     if (!row) throw notFound('ORDER_NOT_FOUND', 'Заказ не найден');
     const items = await this.manager.find(OrderItemRow, { where: { orderId: id }, order: { id: 'ASC' } });
     return toOrder(row, items);
@@ -39,7 +64,28 @@ function toOrderRow(order: Order): OrderRow {
   row.shippingAddress = toAddressJson(s.shippingAddress);
   row.createdAt = s.createdAt;
   row.updatedAt = s.updatedAt;
+  Object.assign(row, lifecycleColumns(s.lifecycle));
   return row;
+}
+
+function lifecycleColumns(lifecycle: LifecycleState): LifecycleColumns {
+  return {
+    paymentId: lifecycle.paymentId ?? null,
+    paidAt: lifecycle.paidAt ?? null,
+    shippedAt: lifecycle.shippedAt ?? null,
+    deliveredAt: lifecycle.deliveredAt ?? null,
+    closedAt: lifecycle.closedAt ?? null,
+  };
+}
+
+function toLifecycle(row: OrderRow): LifecycleState {
+  return {
+    paymentId: row.paymentId ?? undefined,
+    paidAt: row.paidAt ?? undefined,
+    shippedAt: row.shippedAt ?? undefined,
+    deliveredAt: row.deliveredAt ?? undefined,
+    closedAt: row.closedAt ?? undefined,
+  };
 }
 
 function toItemRow(orderId: string, item: Item): OrderItemRow {
@@ -95,5 +141,6 @@ function toOrder(row: OrderRow, items: OrderItemRow[]): Order {
     shippingAddress: toAddress(row.shippingAddress),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    lifecycle: toLifecycle(row),
   });
 }

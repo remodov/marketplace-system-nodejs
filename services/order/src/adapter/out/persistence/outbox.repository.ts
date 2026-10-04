@@ -1,6 +1,16 @@
-import { OrderCreatedPayload } from '@marketplace/contracts-orders-v1';
+import {
+  OrderCancelledPayload,
+  OrderConfirmedPayload,
+  OrderCreatedPayload,
+  OrderDeliveredPayload,
+  OrderEventBase,
+  OrderExpiredPayload,
+  OrderPaidPayload,
+  OrderShippedPayload,
+} from '@marketplace/contracts-orders-v1';
 import { EntityManager } from 'typeorm';
 import { OrderEvent } from '../../../core/order/aggregate/events';
+import { Money } from '../../../core/order/aggregate/order';
 import { EventOutbox, IdGenerator, OutboxMessage } from '../../../core/order/port/out/ports';
 
 const AGGREGATE_ORDER = 'Order';
@@ -27,7 +37,7 @@ export class TypeOrmOutbox implements EventOutbox {
       await this.manager.query(
         `INSERT INTO outbox (id, aggregate_id, aggregate_type, event_type, event_version, payload, occurred_at)
          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)`,
-        [this.ids.newId(), event.orderId, AGGREGATE_ORDER, event.type, EVENT_VERSION, payloadOf(event), event.occurredAt],
+        [this.ids.newId(), event.orderId, AGGREGATE_ORDER, event.type, EVENT_VERSION, JSON.stringify(payloadOf(event)), event.occurredAt],
       );
     }
   }
@@ -50,21 +60,46 @@ export class TypeOrmOutbox implements EventOutbox {
   }
 }
 
-function payloadOf(event: OrderEvent): string {
+type ContractPayload =
+  | OrderCreatedPayload
+  | OrderConfirmedPayload
+  | OrderPaidPayload
+  | OrderCancelledPayload
+  | OrderExpiredPayload
+  | OrderShippedPayload
+  | OrderDeliveredPayload;
+
+function payloadOf(event: OrderEvent): ContractPayload {
+  const base = baseOf(event);
   switch (event.type) {
-    case 'OrderCreated': {
-      const payload: OrderCreatedPayload = {
-        orderId: event.orderId,
-        customerId: event.customerId,
-        sellerId: event.sellerId,
-        occurredAt: event.occurredAt.toISOString(),
-        totalAmount: event.total.amount.toFixed(2),
-        currency: event.total.currency,
-        itemsCount: event.items.length,
-      };
-      return JSON.stringify(payload);
-    }
+    case 'OrderCreated':
+      return { ...base, ...moneyOf(event.total), itemsCount: event.items.length } satisfies OrderCreatedPayload;
+    case 'OrderConfirmed':
+      return { ...base, ...moneyOf(event.total) } satisfies OrderConfirmedPayload;
+    case 'OrderPaid':
+      return { ...base, ...moneyOf(event.total), paymentId: event.paymentId } satisfies OrderPaidPayload;
+    case 'OrderCancelled':
+      return {
+        ...base,
+        previousStatus: event.previousStatus,
+        reason: event.reason.code,
+        ...(event.refundId === undefined ? {} : { refundId: event.refundId }),
+      } satisfies OrderCancelledPayload;
+    case 'OrderExpired':
+      return base satisfies OrderExpiredPayload;
+    case 'OrderShipped':
+      return { ...base, trackingNumber: event.trackingNumber } satisfies OrderShippedPayload;
+    case 'OrderDelivered':
+      return base satisfies OrderDeliveredPayload;
   }
+}
+
+function baseOf(event: OrderEvent): OrderEventBase {
+  return { orderId: event.orderId, customerId: event.customerId, sellerId: event.sellerId, occurredAt: event.occurredAt.toISOString() };
+}
+
+function moneyOf(total: Money): { totalAmount: string; currency: string } {
+  return { totalAmount: total.amount.toFixed(2), currency: total.currency };
 }
 
 function toMessage(row: OutboxRow): OutboxMessage {

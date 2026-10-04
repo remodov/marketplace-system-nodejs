@@ -1,9 +1,11 @@
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { PaymentEventsConsumer } from './adapter/in/kafka/payment-events.consumer';
 import { AppModule } from './bootstrap/app.module';
-import { fromEnv } from './bootstrap/config';
+import { fromEnv, kafkaInUse } from './bootstrap/config';
 import { configureApp } from './bootstrap/configure-app';
+import { ExpireUnpaid } from './core/order/usecase/expire-unpaid';
 import { OutboxRelay } from './core/order/usecase/relay-outbox';
 
 async function main(): Promise<void> {
@@ -13,9 +15,13 @@ async function main(): Promise<void> {
   app.enableShutdownHooks();
   await app.listen(config.httpPort);
   app.get(OutboxRelay).run(config.outboxRelayIntervalMs);
-  const broker = config.publisherMode === 'kafka' ? `kafka ${config.kafkaBrokers.join(',')} топик ${config.kafkaTopic}` : 'события только в лог';
+  app.get(ExpireUnpaid).run(config.expireIntervalMs);
+  if (kafkaInUse(config)) void app.get(PaymentEventsConsumer).run();
+  const broker = kafkaInUse(config)
+    ? `kafka ${config.kafkaBrokers.join(',')}, топики ${config.kafkaTopic} и ${config.paymentsTopic}`
+    : 'без брокера: события только в лог, события платежей не читаем';
   new Logger('order').log(
-    `сервис заказов слушает :${config.httpPort}, каталог ${config.catalogUrl}, аутентификация ${config.authMode}, ${broker}, relay раз в ${config.outboxRelayIntervalMs} мс`,
+    `сервис заказов слушает :${config.httpPort}, каталог ${config.catalogUrl}, платежи ${config.paymentUrl}, аутентификация ${config.authMode}, ${broker}, relay раз в ${config.outboxRelayIntervalMs} мс, просрочка оплаты ${config.expireUnpaidAfterMs} мс`,
   );
 }
 

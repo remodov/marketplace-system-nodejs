@@ -40,6 +40,21 @@ export class OrderRow {
 
   @Column({ type: 'timestamptz', name: 'updated_at' })
   updatedAt!: Date;
+
+  @Column({ type: 'uuid', name: 'payment_id', nullable: true })
+  paymentId!: string | null;
+
+  @Column({ type: 'timestamptz', name: 'paid_at', nullable: true })
+  paidAt!: Date | null;
+
+  @Column({ type: 'timestamptz', name: 'shipped_at', nullable: true })
+  shippedAt!: Date | null;
+
+  @Column({ type: 'timestamptz', name: 'delivered_at', nullable: true })
+  deliveredAt!: Date | null;
+
+  @Column({ type: 'timestamptz', name: 'closed_at', nullable: true })
+  closedAt!: Date | null;
 }
 
 @Entity('order_items')

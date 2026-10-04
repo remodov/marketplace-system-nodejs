@@ -13,7 +13,7 @@ export class NestRelayLog implements RelayLog {
   }
 }
 
-function causeChain(error: unknown): string {
+export function causeChain(error: unknown): string {
   const parts: string[] = [];
   let current: unknown = error;
   while (current instanceof Error) {

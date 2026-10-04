@@ -14,13 +14,14 @@
 |---|---|---|
 | `services/catalog-starter` | карточки товаров, остатки, резерв, поиск | NestJS, TypeORM, миграции TypeORM, Redis |
 | `services/catalog` | те же карточки по-взрослому: слои, спецификация, роли, владение, журнал администратора | NestJS, TypeORM, jose, архитектурные тесты |
-| `services/order` | заказы: черновик с ценами из каталога, клиент каталога с таймаутами, повтором и размыкателем, идемпотентность, outbox | NestJS, TypeORM, undici, opossum, kafkajs |
+| `services/order` | заказы: черновик с ценами из каталога, клиент каталога с таймаутами, повтором и размыкателем, идемпотентность, outbox, статусная модель и сага отмены | NestJS, TypeORM, undici, opossum, kafkajs |
+| `services/payment` | платежи: автомат статусов, одна авторизация на заказ, безопасный повторный возврат | NestJS, `pg` без ORM |
 | `services/notification` | уведомления: потребитель событий заказа с защитой от повторной доставки | NestJS, TypeORM, kafkajs |
-| `contracts` | внешний контракт событий заказа: AsyncAPI, схемы и пакет типов для продюсера и потребителей | AsyncAPI 3, TypeScript |
+| `contracts` | внешние контракты событий заказа и платежа: AsyncAPI, схемы и пакеты типов для продюсера и потребителей | AsyncAPI 3, TypeScript |
 
-Контракт событий лежит в [`contracts/`](contracts/README.md): AsyncAPI-документ, схемы полей и пакет
-`@marketplace/contracts-orders-v1`, который `order` и `notification` подключают зависимостью `file:`, так что
-продюсер и потребитель компилируются против одних типов. Дальше по плану появляются `services/payment`,
+Контракты событий лежат в [`contracts/`](contracts/README.md): AsyncAPI-документы, схемы полей и пакеты
+`@marketplace/contracts-orders-v1` и `@marketplace/contracts-payments-v1`, которые сервисы подключают зависимостью
+`file:`, так что продюсер и потребитель компилируются против одних типов. Дальше по плану появляются
 `services/bff` и `web` - по образцу Java- и Go-версий ([план](docs/practicum/PLAN.md)).
 
 ## С чего начинать
@@ -52,7 +53,7 @@ docker compose -f infra/compose.yaml ps
 |---|---|---|
 | PostgreSQL | 5450 | базы `catalog_starter`, `catalog`, `orders`, `notifications` и `payments` плюс тестовые `*_test` |
 | Redis | 6382 | кэш карточек, шаг 6 |
-| Kafka | 9095 | события заказа из outbox, шаг 10 |
+| Kafka | 9095 | события заказа из outbox, шаг 10; события платежа, шаг 11 |
 | MinIO | 9002, 9003 | изображения товаров, шаг 12 |
 
 Порты сдвинуты относительно Java- и Go-версий, чтобы три стенда могли жить на одной машине.

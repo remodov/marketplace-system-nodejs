@@ -3,6 +3,7 @@ import { IdGenerator, TransactionalPorts, UnitOfWork } from '../../../core/order
 import { TypeOrmIdempotencyKeys } from './idempotency.repository';
 import { TypeOrmOrderRepository } from './order.repository';
 import { TypeOrmOutbox } from './outbox.repository';
+import { TypeOrmProcessedEvents } from './processed-events.repository';
 
 export class TypeOrmUnitOfWork implements UnitOfWork {
   constructor(
@@ -16,6 +17,7 @@ export class TypeOrmUnitOfWork implements UnitOfWork {
         orders: new TypeOrmOrderRepository(manager),
         keys: new TypeOrmIdempotencyKeys(manager),
         outbox: new TypeOrmOutbox(manager, this.ids),
+        processed: new TypeOrmProcessedEvents(manager),
       }),
     );
   }

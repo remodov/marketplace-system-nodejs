@@ -1,10 +1,10 @@
 {
-  "name": "order",
+  "name": "payment",
   "version": "0.1.0",
   "private": true,
-  "description": "Сервис заказов маркетплейса: агрегат Order со статусной моделью, сага отмены с возвратом через платежи, клиент каталога с таймаутами, повтором и размыкателем, outbox",
+  "description": "Сервис платежей маркетплейса: автомат статусов, одна авторизация на заказ, безопасный повторный возврат",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && cp src/payment/schema.sql dist/payment/",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run typecheck && NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
@@ -14,30 +14,22 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@marketplace/contracts-orders-v1": "file:../../contracts/orders/v1",
-    "@marketplace/contracts-payments-v1": "file:../../contracts/payments/v1",
     "@nestjs/common": "^12.1.2",
     "@nestjs/core": "^12.1.2",
     "@nestjs/platform-express": "^12.1.2",
-    "@nestjs/typeorm": "^12.0.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "decimal.js": "^10.6.0",
-    "jose": "^6.2.12",
-    "kafkajs": "^2.2.4",
-    "opossum": "^10.0.0",
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2",
-    "typeorm": "^1.1.1",
-    "undici": "^7.0.0"
+    "rxjs": "^7.8.2"
   },
   "devDependencies": {
     "@nestjs/testing": "^12.1.2",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.19.1",
-    "@types/opossum": "^8.1.9",
+    "@types/pg": "^8.15.5",
     "@types/supertest": "^7.2.1",
     "jest": "^30.5.2",
     "supertest": "^7.3.1",

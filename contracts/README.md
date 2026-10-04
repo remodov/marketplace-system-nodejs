@@ -1,7 +1,7 @@
 # contracts
 
-Внешний контракт событий заказа: один на продюсера (`services/order`) и потребителей
-(`services/notification`, позже `services/payment`).
+Внешние контракты событий: заказа, один на продюсера (`services/order`) и потребителей
+(`services/notification`), и платежа, который читает `services/order`.
 
 - [`asyncapi/marketplace-orders-v1.yaml`](asyncapi/marketplace-orders-v1.yaml) - канал, заголовки, сообщения.
 - [`schemas/order-events.yaml`](schemas/order-events.yaml) - поля событий, один источник правды.
@@ -9,6 +9,9 @@
   `events.d.ts`, имена топика, заголовков и типов событий в `events.js`. Сборки у пакета нет, сервисы подключают
   его зависимостью `"@marketplace/contracts-orders-v1": "file:../../contracts/orders/v1"`: продюсер собирает
   payload по его типам, потребитель читает в них, компилируются оба против одних типов.
+- [`asyncapi/marketplace-payments-v1.yaml`](asyncapi/marketplace-payments-v1.yaml) и [`payments/v1`](payments/v1/) -
+  события платежа, пакет `@marketplace/contracts-payments-v1`: топик `marketplace.payments.v1`, `PaymentCompleted`,
+  по которому сервис заказов переводит заказ в PAID.
 
 Контракт намеренно плоский: во внешнее событие не протекают внутренние типы сервиса. `customerId` - строка
 с UUID, а не вложенный объект; сумма - десятичная строка, а не число с плавающей точкой.
