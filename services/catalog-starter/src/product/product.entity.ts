@@ -20,6 +20,7 @@ export type ProductState = {
   title: string;
   price: Decimal;
   stock: number;
+  reserved: number;
   version: number;
 };
 
@@ -37,6 +38,9 @@ export class Product {
   @Column({ type: 'int' })
   private stock!: number;
 
+  @Column({ type: 'int' })
+  private reserved!: number;
+
   @Column({ type: 'bigint', transformer: bigintColumn })
   private version!: number;
 
@@ -49,12 +53,17 @@ export class Product {
     product.title = title.trim();
     product.price = price;
     product.stock = stock;
+    product.reserved = 0;
     product.version = 0;
     return product;
   }
 
   state(): ProductState {
-    return { id: this.id, title: this.title, price: this.price, stock: this.stock, version: this.version };
+    return { id: this.id, title: this.title, price: this.price, stock: this.stock, reserved: this.reserved, version: this.version };
+  }
+
+  available(): number {
+    return this.stock - this.reserved;
   }
 
   changePrice(newPrice: Decimal): void {
@@ -71,14 +80,14 @@ export class Product {
 
   changeStock(delta: number): void {
     if (delta === 0) throw invalid('изменение остатка не может быть нулевым');
-    if (this.stock + delta < 0) throw new OutOfStockError(this.id, -delta, this.stock);
+    if (this.stock + delta < this.reserved) throw new OutOfStockError(this.id, -delta, this.available());
     this.stock += delta;
   }
 
   reserve(quantity: number): void {
     if (quantity <= 0) throw invalid('количество должно быть больше нуля');
-    if (quantity > this.stock) throw new OutOfStockError(this.id, quantity, this.stock);
-    this.stock -= quantity;
+    if (quantity > this.available()) throw new OutOfStockError(this.id, quantity, this.available());
+    this.reserved += quantity;
   }
 
   bumpVersion(): void {

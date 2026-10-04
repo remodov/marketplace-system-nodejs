@@ -51,3 +51,11 @@ test('пропавшая delta отклоняется с именем поля',
   const res = await s.call('patch', `/products/${p.state().id}/stock`, {}).expect(400);
   expect(res.body.errors.delta).toBeDefined();
 });
+
+test('списание не может тронуть зарезервированное', async () => {
+  const p = await mouse();
+  await s.call('post', `/products/${p.state().id}/reserve`, { quantity: 4 }).expect(200);
+  await s.call('patch', `/products/${p.state().id}/stock`, { delta: -3 }).expect(409);
+  const read = await s.call('get', `/products/${p.state().id}`).expect(200);
+  expect([read.body.stock, read.body.reserved, read.body.available]).toEqual([5, 4, 1]);
+});

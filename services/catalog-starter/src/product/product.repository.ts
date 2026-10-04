@@ -34,16 +34,16 @@ export class ProductRepository implements ProductStore {
   async insert(product: Product): Promise<void> {
     const s = product.state();
     await this.manager.query(
-      'INSERT INTO products (id, title, price, stock, version) VALUES ($1, $2, $3::numeric, $4, $5)',
-      [s.id, s.title, s.price.toFixed(2), s.stock, s.version],
+      'INSERT INTO products (id, title, price, stock, reserved, version) VALUES ($1, $2, $3::numeric, $4, $5, $6)',
+      [s.id, s.title, s.price.toFixed(2), s.stock, s.reserved, s.version],
     );
   }
 
   async update(product: Product): Promise<void> {
     const s = product.state();
     const [, affected] = (await this.manager.query(
-      'UPDATE products SET title = $2, price = $3::numeric, stock = $4, version = version + 1 WHERE id = $1 AND version = $5',
-      [s.id, s.title, s.price.toFixed(2), s.stock, s.version],
+      'UPDATE products SET title = $2, price = $3::numeric, stock = $4, reserved = $5, version = version + 1 WHERE id = $1 AND version = $6',
+      [s.id, s.title, s.price.toFixed(2), s.stock, s.reserved, s.version],
     )) as [unknown, number];
     if (affected === 0) throw new ConflictError();
     product.bumpVersion();

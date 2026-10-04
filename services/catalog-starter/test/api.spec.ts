@@ -22,10 +22,10 @@ test('поиск находит по части названия', async () => {
   expect(res.body[0].title).toBe(title);
 });
 
-test('резерв списывает остаток', async () => {
+test('резерв удерживает остаток, а не списывает', async () => {
   const p = await s.mustCreate(unique('USB-хаб'), '890.00', 5);
   const res = await s.call('post', `/products/${p.state().id}/reserve`, { quantity: 2 }).expect(200);
-  expect(res.body.stock).toBe(3);
+  expect([res.body.stock, res.body.reserved, res.body.available]).toEqual([5, 2, 3]);
 });
 
 test('резерв сверх остатка отклоняется', async () => {

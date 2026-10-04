@@ -49,10 +49,12 @@ export class ProductService {
     return product;
   }
 
-  async reserve(id: string, quantity: number): Promise<Product> {
-    const product = await this.store.byId(id);
-    product.reserve(quantity);
-    await this.store.update(product);
-    return product;
+  reserve(id: string, quantity: number): Promise<Product> {
+    return this.store.withTx(async (tx) => {
+      const product = await tx.byIdForUpdate(id);
+      product.reserve(quantity);
+      await tx.update(product);
+      return product;
+    });
   }
 }
