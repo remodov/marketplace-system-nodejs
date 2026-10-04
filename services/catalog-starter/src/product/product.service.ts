@@ -27,20 +27,9 @@ export class ProductService {
     return this.store.byId(id);
   }
 
+  // TODO шаг 6: карточка из кэша, сброс записи при любом изменении товара
   async card(id: string): Promise<Card> {
-    const key = cardKey(id);
-    const cached = await this.cache.get<Card>(key).catch((e: unknown) => {
-      this.log.warn(`кэш карточек недоступен, читаем из базы: ${String(e)}`);
-      return undefined;
-    });
-    if (cached) return cached;
-    const card = cardOf(await this.store.byId(id));
-    await this.cache.set(key, card).catch((e: unknown) => this.log.warn(`карточка не попала в кэш: ${String(e)}`));
-    return card;
-  }
-
-  private async forget(id: string): Promise<void> {
-    await this.cache.delete(cardKey(id)).catch((e: unknown) => this.log.warn(`карточка ${id} не сброшена из кэша: ${String(e)}`));
+    return cardOf(await this.store.byId(id));
   }
 
   async create(title: string, price: Decimal, stock: number): Promise<Product> {
@@ -65,22 +54,15 @@ export class ProductService {
     const product = await this.store.byId(id);
     command(product);
     await this.store.update(product);
-    await this.forget(id);
     return product;
   }
 
-  async reserve(id: string, quantity: number): Promise<Product> {
-    const reserved = await this.store.withTx(async (tx) => {
+  reserve(id: string, quantity: number): Promise<Product> {
+    return this.store.withTx(async (tx) => {
       const product = await tx.byIdForUpdate(id);
       product.reserve(quantity);
       await tx.update(product);
       return product;
     });
-    await this.forget(id);
-    return reserved;
   }
-}
-
-function cardKey(id: string): string {
-  return `product-card:${id}`;
 }
