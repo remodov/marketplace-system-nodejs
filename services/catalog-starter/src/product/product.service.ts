@@ -49,12 +49,11 @@ export class ProductService {
     return product;
   }
 
-  reserve(id: string, quantity: number): Promise<Product> {
-    return this.store.withTx(async (tx) => {
-      const product = await tx.byIdForUpdate(id);
-      product.reserve(quantity);
-      await tx.update(product);
-      return product;
-    });
+  async reserve(id: string, quantity: number): Promise<Product> {
+    // TODO шаг 5: транзакция и строка под блокировкой, иначе двое прочитают один остаток
+    const product = await this.store.byId(id);
+    product.reserve(quantity);
+    await this.store.update(product);
+    return product;
   }
 }
