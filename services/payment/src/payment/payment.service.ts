@@ -2,7 +2,7 @@ import Decimal from 'decimal.js';
 import { randomUUID } from 'node:crypto';
 import { Pool, PoolClient } from 'pg';
 import { moveTo, Payment, Status } from './payment';
-import { findByOrderId, insert, requireById, updateStatus } from './payment.repository';
+import { insert, requireById, updateStatus } from './payment.repository';
 
 export interface Clock {
   now(): Date;
@@ -14,10 +14,10 @@ export class PaymentService {
     private readonly clock: Clock,
   ) {}
 
+  // TODO шаг 11: заказ платят один раз - повторная авторизация того же заказа
+  // возвращает уже созданный платёж, а не списывает деньги второй раз.
   authorize(orderId: string, amount: Decimal, currency: string): Promise<Payment> {
     return this.inTx(async (tx) => {
-      const existing = await findByOrderId(tx, orderId);
-      if (existing) return existing;
       const now = this.clock.now();
       const payment: Payment = {
         id: randomUUID(),
@@ -37,14 +37,10 @@ export class PaymentService {
     return this.moveTo(id, 'CAPTURED');
   }
 
+  // TODO шаг 11: повторный возврат это не второй возврат и не ошибка - сага может
+  // дойти до компенсации дважды, ответ тот же, деньги возвращаются один раз.
   refund(id: string): Promise<Payment> {
-    return this.inTx(async (tx) => {
-      const current = await requireById(tx, id);
-      if (current.status === 'REFUNDED') return current;
-      const refunded = moveTo(current, 'REFUNDED', this.clock.now());
-      await updateStatus(tx, refunded);
-      return refunded;
-    });
+    return this.moveTo(id, 'REFUNDED');
   }
 
   byId(id: string): Promise<Payment> {

@@ -10,15 +10,10 @@ export function parseStatus(raw: string): Status {
   return status;
 }
 
+// TODO шаг 11: перечислить разрешённые переходы; всё, чего здесь нет, запрещено,
+// конечные статусы никуда не ведут, переход в себя же не переход.
 export function canMoveTo(from: Status, next: Status): boolean {
-  switch (from) {
-    case 'AUTHORIZED':
-      return next === 'CAPTURED' || next === 'REFUNDED' || next === 'FAILED';
-    case 'CAPTURED':
-      return next === 'REFUNDED';
-    default:
-      return false;
-  }
+  return true;
 }
 
 export class InvalidTransitionError extends Error {
