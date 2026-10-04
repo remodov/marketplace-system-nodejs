@@ -66,10 +66,11 @@ export class Product {
     return this.fields.sellerId === sellerId;
   }
 
+  // TODO шаг 7: правило BR-P01 - цена больше нуля, округление до копеек, обновить updatedAt.
   changePrice(newPrice: Decimal, now: Date): void {
-    if (newPrice.lte(0)) throw invalid('INVALID_PRICE', `Цена должна быть больше нуля, а не ${newPrice.toString()}`);
-    this.fields.price = newPrice.toDecimalPlaces(2);
-    this.fields.updatedAt = now;
+    void newPrice;
+    void now;
+    throw invalid('INVALID_PRICE', 'TODO шаг 7: правило смены цены ещё не реализовано');
   }
 
   publish(now: Date): void {

@@ -10,7 +10,6 @@ import { TypeOrmUnitOfWork } from '../adapter/out/persistence/unit-of-work';
 import { RandomIds, SystemClock } from '../adapter/out/system/system';
 import { Clock, IdGenerator, ProductRepository, UnitOfWork } from '../core/product/port/out/ports';
 import { QueryHandler } from '../core/product/query/queries';
-import { ChangeProductPriceHandler } from '../core/product/usecase/change-product-price';
 import { ChangeStatusHandler } from '../core/product/usecase/change-status';
 import { CreateProductHandler } from '../core/product/usecase/create-product';
 import { Config } from './config';
@@ -51,11 +50,7 @@ export function wiring(config: Config, deps: Deps): Provider[] {
       useFactory: (products: ProductRepository, clock: Clock, ids: IdGenerator) => new CreateProductHandler(products, clock, ids),
       inject: [PRODUCT_REPOSITORY, CLOCK, ID_GENERATOR],
     },
-    {
-      provide: ChangeProductPriceHandler,
-      useFactory: (clock: Clock, ids: IdGenerator, uow: UnitOfWork) => new ChangeProductPriceHandler(clock, ids, uow),
-      inject: [CLOCK, ID_GENERATOR, UNIT_OF_WORK],
-    },
+    // TODO шаг 7: собрать ChangeProductPriceHandler из CLOCK, ID_GENERATOR и UNIT_OF_WORK, как ChangeStatusHandler ниже.
     {
       provide: ChangeStatusHandler,
       useFactory: (clock: Clock, ids: IdGenerator, uow: UnitOfWork) => new ChangeStatusHandler(clock, ids, uow),
