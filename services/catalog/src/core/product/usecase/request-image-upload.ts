@@ -1,6 +1,5 @@
 import { Principal } from '../../security/principal';
 import { IdGenerator, ImageStorage, PresignedUpload, ProductRepository } from '../port/out/ports';
-import { requireOwnership } from './ownership';
 
 export type RequestImageUpload = {
   productId: string;
@@ -17,7 +16,9 @@ export class RequestImageUploadHandler {
 
   async handle(cmd: RequestImageUpload): Promise<PresignedUpload> {
     const product = await this.products.byId(cmd.productId);
-    requireOwnership(product, cmd.requester);
+    // TODO шаг 12: ссылку на загрузку получает только владелец товара (или администратор).
+    // Карточку смотреть может кто угодно, а грузить в неё файлы - нет.
+    // Чужой товар для не-владельца должен выглядеть как несуществующий.
     const key = `products/${product.state().id}/${this.ids.newId()}`;
     return this.images.presignUpload(key, cmd.contentType);
   }

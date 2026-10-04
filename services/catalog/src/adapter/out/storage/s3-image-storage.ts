@@ -28,13 +28,9 @@ export class S3ImageStorage implements ImageStorage {
   }
 
   async presignUpload(key: string, contentType: string): Promise<PresignedUpload> {
-    const signedAt = this.clock.now();
-    const put = new PutObjectCommand({ Bucket: this.settings.bucket, Key: key, ContentType: contentType });
-    const url = await getSignedUrl(this.client, put, {
-      expiresIn: this.settings.uploadUrlTtlSeconds,
-      signingDate: signedAt,
-      signableHeaders: new Set(['content-type']),
-    });
-    return { key, url, expiresAt: new Date(signedAt.getTime() + this.settings.uploadUrlTtlSeconds * 1000) };
+    // TODO шаг 12: подписанная ссылка на PUT объекта.
+    // Тип содержимого должен войти в подпись, срок жизни берётся из настроек,
+    // момент подписи и expiresAt считаются от часов сервиса. Клиент уже собран и в сеть не ходит.
+    throw new Error(`шаг 12: ссылка на загрузку ${key} (${contentType}) не реализована`);
   }
 }
