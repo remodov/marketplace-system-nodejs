@@ -27,16 +27,11 @@ export type Deps = {
   catalog?: CatalogGateway;
 };
 
+// TODO шаг 8: подобрать числа - таймауты на соединение и запрос, попытки, пауза,
+// порог размыкателя. Худшее время ответа = попытки x (таймаут + пауза); оно должно
+// быть меньше, чем терпение браузера покупателя.
 export function catalogSettings(baseUrl: string): CatalogSettings {
-  return {
-    baseUrl,
-    connectTimeoutMs: 500,
-    requestTimeoutMs: 1000,
-    attempts: 2,
-    backoffMs: 50,
-    breakerMinRequests: 10,
-    breakerOpenForMs: 60_000,
-  };
+  return { baseUrl, connectTimeoutMs: 0, requestTimeoutMs: 0, attempts: 1, backoffMs: 0, breakerMinRequests: 0, breakerOpenForMs: 0 };
 }
 
 export function authenticatorOf(config: Config): Authenticator {
