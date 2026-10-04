@@ -24,18 +24,7 @@ export class ReserveDto {
   quantity!: number;
 }
 
-export class ChangePriceDto {
-  @IsDefined({ message: 'цена обязательна' })
-  @IsNumber({}, { message: 'цена должна быть числом' })
-  @IsPositive({ message: 'цена должна быть больше нуля' })
-  price!: number;
-}
-
-export class ChangeStockDto {
-  @IsDefined({ message: 'изменение остатка обязательно' })
-  @IsInt({ message: 'изменение остатка должно быть целым' })
-  delta!: number;
-}
+// TODO шаг 3: ChangePriceDto и ChangeStockDto с проверками входа
 
 export class SearchQueryDto {
   @IsOptional()
