@@ -1,35 +1,17 @@
 import { EntityManager } from 'typeorm';
-import { conflict } from '../../../core/apperr';
 import { IdempotencyKeys } from '../../../core/order/port/out/ports';
-
-type IdempotencyKeyRow = {
-  request_hash: string;
-  order_id: string;
-};
 
 export class TypeOrmIdempotencyKeys implements IdempotencyKeys {
   constructor(private readonly manager: EntityManager) {}
 
+  // TODO шаг 9: прочитать строку по ключу; хеш другой - конфликт IDEMPOTENCY_KEY_CONFLICT,
+  // хеш тот же - id прежнего заказа, строки нет - undefined.
   async find(key: string, requestHash: string): Promise<string | undefined> {
-    const rows: IdempotencyKeyRow[] = await this.manager.query(
-      'SELECT request_hash, order_id FROM idempotency_keys WHERE idempotency_key = $1',
-      [key],
-    );
-    if (rows.length === 0) return undefined;
-    if (rows[0].request_hash !== requestHash) {
-      throw conflict('IDEMPOTENCY_KEY_CONFLICT', 'Ключ Idempotency-Key уже использован для другого запроса');
-    }
-    return rows[0].order_id;
+    return undefined;
   }
 
+  // TODO шаг 9: занять ключ одной вставкой с ON CONFLICT DO NOTHING и сказать, удалось ли.
   async claim(key: string, requestHash: string, orderId: string, now: Date): Promise<boolean> {
-    const inserted: unknown[] = await this.manager.query(
-      `INSERT INTO idempotency_keys (idempotency_key, request_hash, order_id, created_at)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (idempotency_key) DO NOTHING
-       RETURNING idempotency_key`,
-      [key, requestHash, orderId, now],
-    );
-    return inserted.length === 1;
+    return true;
   }
 }

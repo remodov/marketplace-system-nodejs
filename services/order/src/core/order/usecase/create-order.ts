@@ -22,13 +22,6 @@ export type CreateOrderResult = {
   created: boolean;
 };
 
-class IdempotencyKeyTaken extends Error {
-  constructor() {
-    super('ключ идемпотентности занят другим запросом');
-    this.name = 'IdempotencyKeyTaken';
-  }
-}
-
 export class CreateOrderHandler {
   constructor(
     private readonly orders: OrderRepository,
@@ -39,33 +32,15 @@ export class CreateOrderHandler {
     private readonly uow: UnitOfWork,
   ) {}
 
+  // TODO шаг 9: до работы спросить у keys прежний заказ по ключу и хешу (конфликт
+  // хеша уходит наружу как есть), после сборки заказа записать его и занять ключ в
+  // одной транзакции; если ключ занять не удалось, вернуть чужой заказ с created: false.
   async handle(cmd: CreateOrder): Promise<CreateOrderResult> {
     if (cmd.lines.length === 0) throw invalid('EMPTY_ORDER', 'В заказе нет ни одной позиции');
     requireSingleSeller(cmd.lines);
-    const existing = await this.keys.find(cmd.idempotencyKey, cmd.requestHash);
-    if (existing !== undefined) return this.replay(existing);
     const order = await this.build(cmd);
-    try {
-      await this.uow.within(async (tx) => {
-        await tx.orders.insert(order);
-        const claimed = await tx.keys.claim(cmd.idempotencyKey, cmd.requestHash, order.state().id, order.state().createdAt);
-        if (!claimed) throw new IdempotencyKeyTaken();
-      });
-    } catch (error) {
-      if (!(error instanceof IdempotencyKeyTaken)) throw error;
-      return this.replayWinner(cmd);
-    }
+    await this.uow.within((tx) => tx.orders.insert(order));
     return { order, created: true };
-  }
-
-  private async replayWinner(cmd: CreateOrder): Promise<CreateOrderResult> {
-    const winner = await this.keys.find(cmd.idempotencyKey, cmd.requestHash);
-    if (winner === undefined) throw new Error(`ключ идемпотентности ${cmd.idempotencyKey} занят, а заказ по нему не найден`);
-    return this.replay(winner);
-  }
-
-  private async replay(orderId: string): Promise<CreateOrderResult> {
-    return { order: await this.orders.byId(orderId), created: false };
   }
 
   private async build(cmd: CreateOrder): Promise<Order> {
