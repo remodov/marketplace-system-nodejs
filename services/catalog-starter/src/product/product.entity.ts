@@ -55,6 +55,17 @@ export class Product {
     return { id: this.id, title: this.title, price: this.price, stock: this.stock, version: this.version };
   }
 
+  changePrice(newPrice: Decimal): void {
+    if (newPrice.lte(0)) throw invalid('цена должна быть больше нуля');
+    this.price = newPrice;
+  }
+
+  changeStock(delta: number): void {
+    if (delta === 0) throw invalid('изменение остатка не может быть нулевым');
+    if (this.stock + delta < 0) throw new OutOfStockError(this.id, -delta, this.stock);
+    this.stock += delta;
+  }
+
   reserve(quantity: number): void {
     if (quantity <= 0) throw invalid('количество должно быть больше нуля');
     if (quantity > this.stock) throw new OutOfStockError(this.id, quantity, this.stock);

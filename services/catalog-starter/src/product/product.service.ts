@@ -30,6 +30,21 @@ export class ProductService {
     return product;
   }
 
+  changePrice(id: string, newPrice: Decimal): Promise<Product> {
+    return this.change(id, (p) => p.changePrice(newPrice));
+  }
+
+  changeStock(id: string, delta: number): Promise<Product> {
+    return this.change(id, (p) => p.changeStock(delta));
+  }
+
+  private async change(id: string, command: (product: Product) => void): Promise<Product> {
+    const product = await this.store.byId(id);
+    command(product);
+    await this.store.update(product);
+    return product;
+  }
+
   async reserve(id: string, quantity: number): Promise<Product> {
     const product = await this.store.byId(id);
     product.reserve(quantity);

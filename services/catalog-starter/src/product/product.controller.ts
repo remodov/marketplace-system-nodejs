@@ -1,8 +1,8 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import Decimal from 'decimal.js';
 import { BadInputError, FieldErrors } from '../http/problem';
 import { Card, cardOf } from './product.card';
-import { CreateProductDto, ReserveDto, SearchQueryDto } from './product.dto';
+import { ChangePriceDto, ChangeStockDto, CreateProductDto, ReserveDto, SearchQueryDto } from './product.dto';
 import { ProductService } from './product.service';
 
 export const productId = new ParseUUIDPipe({
@@ -17,6 +17,16 @@ export class ProductController {
   async search(@Query() query: SearchQueryDto): Promise<Card[]> {
     const found = await this.searchOrFilter(query);
     return found.map(cardOf);
+  }
+
+  @Patch(':id/price')
+  async changePrice(@Param('id', productId) id: string, @Body() body: ChangePriceDto): Promise<Card> {
+    return cardOf(await this.service.changePrice(id, new Decimal(String(body.price))));
+  }
+
+  @Patch(':id/stock')
+  async changeStock(@Param('id', productId) id: string, @Body() body: ChangeStockDto): Promise<Card> {
+    return cardOf(await this.service.changeStock(id, body.delta));
   }
 
   private searchOrFilter(query: SearchQueryDto) {
