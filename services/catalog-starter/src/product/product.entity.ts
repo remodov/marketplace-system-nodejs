@@ -63,10 +63,8 @@ export class Product {
   }
 
   applyDiscount(percent: number): void {
-    if (percent < 1 || percent > MAX_DISCOUNT_PERCENT) {
-      throw invalid(`скидка допустима от 1 до ${MAX_DISCOUNT_PERCENT} процентов, а не ${percent}`);
-    }
-    this.price = this.price.mul(100 - percent).div(100).toDecimalPlaces(2);
+    // TODO шаг 4: процент от 1 до MAX_DISCOUNT_PERCENT, иначе InvalidError с пределом; цена с округлением до копеек
+    void percent;
   }
 
   changeStock(delta: number): void {

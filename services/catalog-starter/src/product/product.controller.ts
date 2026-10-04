@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Que
 import Decimal from 'decimal.js';
 import { BadInputError, FieldErrors } from '../http/problem';
 import { Card, cardOf } from './product.card';
-import { ApplyDiscountDto, ChangePriceDto, ChangeStockDto, CreateProductDto, ReserveDto, SearchQueryDto } from './product.dto';
+import { ChangePriceDto, ChangeStockDto, CreateProductDto, ReserveDto, SearchQueryDto } from './product.dto';
 import { ProductService } from './product.service';
 
 export const productId = new ParseUUIDPipe({
@@ -24,10 +24,7 @@ export class ProductController {
     return cardOf(await this.service.changePrice(id, new Decimal(String(body.price))));
   }
 
-  @Patch(':id/discount')
-  async applyDiscount(@Param('id', productId) id: string, @Body() body: ApplyDiscountDto): Promise<Card> {
-    return cardOf(await this.service.applyDiscount(id, body.percent));
-  }
+  // TODO шаг 4: PATCH :id/discount с телом {"percent": N}
 
   @Patch(':id/stock')
   async changeStock(@Param('id', productId) id: string, @Body() body: ChangeStockDto): Promise<Card> {

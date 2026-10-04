@@ -31,11 +31,7 @@ export class ChangePriceDto {
   price!: number;
 }
 
-export class ApplyDiscountDto {
-  @IsDefined({ message: 'процент скидки обязателен' })
-  @IsInt({ message: 'процент скидки должен быть целым' })
-  percent!: number;
-}
+// TODO шаг 4: ApplyDiscountDto с обязательным целым percent
 
 export class ChangeStockDto {
   @IsDefined({ message: 'изменение остатка обязательно' })
