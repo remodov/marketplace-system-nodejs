@@ -2,7 +2,7 @@ import { Inject, Injectable, OnApplicationShutdown, OnModuleInit } from '@nestjs
 import { context, propagation, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
-import { BatchSpanProcessor, ParentBasedSampler, Sampler, TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-base';
+import { AlwaysOffSampler, BatchSpanProcessor, Sampler } from '@opentelemetry/sdk-trace-base';
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 import { ATTR_HTTP_REQUEST_METHOD, ATTR_HTTP_RESPONSE_STATUS_CODE, ATTR_HTTP_ROUTE, ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { RequestHandler } from 'express';
@@ -10,7 +10,9 @@ import { routeOf } from './route';
 import { OBSERVABILITY_SETTINGS, ObservabilitySettings } from './settings';
 
 export function sampler(ratio: number): Sampler {
-  return new ParentBasedSampler({ root: new TraceIdRatioBasedSampler(ratio) });
+  // TODO шаг 15: сэмплирование трасс по доле из настроек, с уважением к решению родителя.
+  void ratio;
+  return new AlwaysOffSampler();
 }
 
 export function tracing(settings: ObservabilitySettings): NodeTracerProvider {
