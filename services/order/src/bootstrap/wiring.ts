@@ -5,10 +5,11 @@ import { AUTHENTICATOR, Authenticator, JwtAuthenticator, LocalTokens } from '../
 import { BearerAuthGuard } from '../adapter/in/http/auth.guard';
 import { DB_PINGER, Pinger } from '../adapter/in/http/health.controller';
 import { CatalogClient, CatalogSettings } from '../adapter/out/catalog/catalog.client';
+import { TypeOrmIdempotencyKeys } from '../adapter/out/persistence/idempotency.repository';
 import { TypeOrmOrderRepository } from '../adapter/out/persistence/order.repository';
 import { TypeOrmUnitOfWork } from '../adapter/out/persistence/unit-of-work';
 import { RandomIds, SystemClock } from '../adapter/out/system/system';
-import { CatalogGateway, Clock, IdGenerator, OrderRepository, UnitOfWork } from '../core/order/port/out/ports';
+import { CatalogGateway, Clock, IdempotencyKeys, IdGenerator, OrderRepository, UnitOfWork } from '../core/order/port/out/ports';
 import { QueryHandler } from '../core/order/query/queries';
 import { CreateOrderHandler } from '../core/order/usecase/create-order';
 import { Config } from './config';
@@ -18,6 +19,7 @@ export const CLOCK = Symbol('CLOCK');
 export const ID_GENERATOR = Symbol('ID_GENERATOR');
 export const CATALOG_GATEWAY = Symbol('CATALOG_GATEWAY');
 export const ORDER_REPOSITORY = Symbol('ORDER_REPOSITORY');
+export const IDEMPOTENCY_KEYS = Symbol('IDEMPOTENCY_KEYS');
 export const UNIT_OF_WORK = Symbol('UNIT_OF_WORK');
 
 export type Deps = {
@@ -55,12 +57,14 @@ export function wiring(config: Config, deps: Deps): Provider[] {
 
     { provide: DB_PINGER, useFactory: (db: DataSource): Pinger => ({ ping: () => db.query('SELECT 1') }), inject: [DataSource] },
     { provide: ORDER_REPOSITORY, useFactory: (db: DataSource) => new TypeOrmOrderRepository(db.manager), inject: [DataSource] },
+    { provide: IDEMPOTENCY_KEYS, useFactory: (db: DataSource) => new TypeOrmIdempotencyKeys(db.manager), inject: [DataSource] },
     { provide: UNIT_OF_WORK, useFactory: (db: DataSource) => new TypeOrmUnitOfWork(db), inject: [DataSource] },
 
     {
       provide: CreateOrderHandler,
-      useFactory: (catalog: CatalogGateway, clock: Clock, ids: IdGenerator, uow: UnitOfWork) => new CreateOrderHandler(catalog, clock, ids, uow),
-      inject: [CATALOG_GATEWAY, CLOCK, ID_GENERATOR, UNIT_OF_WORK],
+      useFactory: (orders: OrderRepository, catalog: CatalogGateway, keys: IdempotencyKeys, clock: Clock, ids: IdGenerator, uow: UnitOfWork) =>
+        new CreateOrderHandler(orders, catalog, keys, clock, ids, uow),
+      inject: [ORDER_REPOSITORY, CATALOG_GATEWAY, IDEMPOTENCY_KEYS, CLOCK, ID_GENERATOR, UNIT_OF_WORK],
     },
     { provide: QueryHandler, useFactory: (orders: OrderRepository) => new QueryHandler(orders), inject: [ORDER_REPOSITORY] },
   ];

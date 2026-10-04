@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { randomUUID } from 'node:crypto';
 import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http';
 import { AddressInfo } from 'node:net';
 import request from 'supertest';
@@ -34,6 +35,7 @@ export type Stand = {
   app: INestApplication;
   db: DataSource;
   call(method: Method, path: string, token: string, body?: unknown): request.Test;
+  postOrder(token: string, body?: unknown, idempotencyKey?: string): request.Test;
   clearTables(): Promise<void>;
   ordersInDb(): Promise<number>;
   close(): Promise<void>;
@@ -46,16 +48,18 @@ export async function stand(catalog: CatalogGateway): Promise<Stand> {
   const app = configureApp(moduleRef.createNestApplication({ logger: false }));
   await app.init();
   const db = app.get(DataSource);
+  const call: Stand['call'] = (method, path, token, body) => {
+    let req = request(app.getHttpServer())[method](path);
+    if (token !== '') req = req.set('Authorization', `Bearer ${token}`);
+    return body === undefined ? req : req.set('Content-Type', 'application/json').send(body as object);
+  };
   return {
     app,
     db,
-    call: (method, path, token, body) => {
-      let req = request(app.getHttpServer())[method](path);
-      if (token !== '') req = req.set('Authorization', `Bearer ${token}`);
-      return body === undefined ? req : req.set('Content-Type', 'application/json').send(body as object);
-    },
+    call,
+    postOrder: (token, body, idempotencyKey = randomUUID()) => call('post', '/api/v1/orders', token, body).set('Idempotency-Key', idempotencyKey),
     clearTables: async () => {
-      await db.query('TRUNCATE order_items, orders');
+      await db.query('TRUNCATE idempotency_keys, order_items, orders');
     },
     ordersInDb: async () => {
       const rows: { count: string }[] = await db.query('SELECT count(*)::text AS count FROM orders');

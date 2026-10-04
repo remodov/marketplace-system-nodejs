@@ -13,7 +13,7 @@ async function given(script: Script, settings?: (defaults: CatalogSettings) => C
 }
 
 function placeOrder() {
-  return s.call('post', '/api/v1/orders', customerToken(randomUUID()), orderBody(randomUUID(), randomUUID(), 1));
+  return s.postOrder(customerToken(randomUUID()), orderBody(randomUUID(), randomUUID(), 1));
 }
 
 afterEach(async () => {

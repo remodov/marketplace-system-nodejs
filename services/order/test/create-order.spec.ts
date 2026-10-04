@@ -24,7 +24,7 @@ test('приложение стартует, миграции накатаны, 
   const rows: { table_name: string }[] = await s.db.query(
     "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
   );
-  expect(rows.map((row) => row.table_name)).toEqual(expect.arrayContaining(['orders', 'order_items', 'migrations']));
+  expect(rows.map((row) => row.table_name)).toEqual(expect.arrayContaining(['orders', 'order_items', 'idempotency_keys', 'migrations']));
 });
 
 test('когда каталог отвечает, заказ сохраняется с ценами каталога', async () => {
@@ -33,7 +33,7 @@ test('когда каталог отвечает, заказ сохраняет�
   const seller = randomUUID();
   const product = randomUUID();
 
-  const created = await s.call('post', '/api/v1/orders', customerToken(customer), orderBody(product, seller, 2)).expect(201);
+  const created = await s.postOrder(customerToken(customer), orderBody(product, seller, 2)).expect(201);
 
   expect(created.body.status).toBe('DRAFT');
   expect(created.body.total).toBe(4981);
@@ -53,7 +53,7 @@ test('когда каталог отвечает, заказ сохраняет�
 test('неизвестный товар даёт 404 без повтора', async () => {
   await given((_, __, res) => answerNotFound(res));
 
-  const response = await s.call('post', '/api/v1/orders', customerToken(randomUUID()), orderBody(randomUUID(), randomUUID(), 1)).expect(404);
+  const response = await s.postOrder(customerToken(randomUUID()), orderBody(randomUUID(), randomUUID(), 1)).expect(404);
 
   expect(response.body.code).toBe('PRODUCT_NOT_FOUND');
   expect(await s.ordersInDb()).toBe(0);
@@ -70,7 +70,7 @@ test('товары двух продавцов отклоняются до по�
     shippingAddress: { country: 'RU', city: 'Москва', street: 'Тверская, 1', postalCode: '125009' },
   };
 
-  const response = await s.call('post', '/api/v1/orders', customerToken(randomUUID()), body).expect(400);
+  const response = await s.postOrder(customerToken(randomUUID()), body).expect(400);
 
   expect(response.body.code).toBe('MULTI_SELLER_NOT_SUPPORTED');
   expect(await s.ordersInDb()).toBe(0);
@@ -114,7 +114,7 @@ test('без токена оформление отклоняется', async ()
 test('чужой покупатель получает 404, администратор видит заказ', async () => {
   await given((_, req, res) => answerPrice(req, res, '100.00'));
   const owner = randomUUID();
-  const created = await s.call('post', '/api/v1/orders', customerToken(owner), orderBody(randomUUID(), randomUUID(), 1)).expect(201);
+  const created = await s.postOrder(customerToken(owner), orderBody(randomUUID(), randomUUID(), 1)).expect(201);
   const path = `/api/v1/orders/${created.body.id}`;
 
   await s.call('get', path, customerToken(owner)).expect(200);

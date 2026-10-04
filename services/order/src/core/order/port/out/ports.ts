@@ -5,6 +5,11 @@ export interface OrderRepository {
   byId(id: string): Promise<Order>;
 }
 
+export interface IdempotencyKeys {
+  find(key: string, requestHash: string): Promise<string | undefined>;
+  claim(key: string, requestHash: string, orderId: string, now: Date): Promise<boolean>;
+}
+
 export type Prices = Map<string, Money>;
 
 export interface CatalogGateway {
@@ -21,6 +26,7 @@ export interface IdGenerator {
 
 export type TransactionalPorts = {
   orders: OrderRepository;
+  keys: IdempotencyKeys;
 };
 
 export interface UnitOfWork {

@@ -1,11 +1,14 @@
 import { DataSource } from 'typeorm';
 import { TransactionalPorts, UnitOfWork } from '../../../core/order/port/out/ports';
+import { TypeOrmIdempotencyKeys } from './idempotency.repository';
 import { TypeOrmOrderRepository } from './order.repository';
 
 export class TypeOrmUnitOfWork implements UnitOfWork {
   constructor(private readonly dataSource: DataSource) {}
 
   within<T>(work: (tx: TransactionalPorts) => Promise<T>): Promise<T> {
-    return this.dataSource.transaction((manager) => work({ orders: new TypeOrmOrderRepository(manager) }));
+    return this.dataSource.transaction((manager) =>
+      work({ orders: new TypeOrmOrderRepository(manager), keys: new TypeOrmIdempotencyKeys(manager) }),
+    );
   }
 }
